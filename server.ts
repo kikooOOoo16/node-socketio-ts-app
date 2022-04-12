@@ -1,5 +1,6 @@
 import {app} from './src/app';
 import * as http from "http";
+import {socket} from './src/chat/socket';
 
 const normalizePort = (val: string | number) => {
     let port = parseInt( String(val), 10);
@@ -45,6 +46,10 @@ const port = normalizePort(process.env.PORT || 3000);
 app.set('port', port);
 
 const server = http.createServer(app);
+
+// Enable SocketIO communication
+socket(server);
+
 server.on('error', onError);
 server.on('listening', onListening);
 server.listen(port);
