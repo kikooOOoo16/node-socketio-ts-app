@@ -1,12 +1,18 @@
-import {User} from "../models/user";
-import {UserDataMissingError} from "./exceptions/users-service-missing-data";
-import {UserAlreadyInRoomError} from "./exceptions/users-service-user-already-in-room";
-import {UserDoesNotExistError} from "./exceptions/users-service-user-doesnot-exist";
-import {CustomUserServiceError} from "./exceptions/CustomUserServiceError";
+import {User} from "../interfaces/user";
+import {Room} from "../interfaces/room";
+import {RoomNameTaken} from "./exceptions/users-service-room-name-taken";
+import {RoomDataMissing} from "./exceptions/users-service-room-data-missing";
+import {InvalidRoomQuery} from "./exceptions/users-service-invalid-room-query";
+import {NoSuchRoomExists} from "./exceptions/users-service-no-such-room-exists";
+import {MissingQueryData} from "./exceptions/users-service-missing-data";
+import {UserAlreadyInRoom} from "./exceptions/users-service-user-already-in-room";
+
+const validRoomObjKeyValues = ['author', 'name', 'description'];
 
 export class UsersService {
     private static instance: UsersService;
-    private users: Array<User> = [];
+    private users: User[] = [];
+    private rooms: Room[] = [];
 
     private constructor() {
     }
@@ -18,54 +24,100 @@ export class UsersService {
         return UsersService.instance;
     }
 
-    public addUser = (newUser: User): CustomUserServiceError | User => {
+    createRoom = (newRoom: Room, userId: string) : string => {
+        // format new room name to avoid duplicate names
+        newRoom.name = newRoom.name.trim().toLowerCase();
 
-        // check if all data is passed
-        if (!newUser.name || !newUser.room)
-            return new UserDataMissingError();
+        // check if all data provided for newRoom
+        if (newRoom.name === '' || !newRoom.author  || newRoom.description === '') {
+            return new RoomDataMissing().printError();
+        }
 
-        // check if newUser exists within the same room
-        const existingUserInRoom = this.users.find(user => {
-            return user.room === newUser.room && user.name === newUser.name;
+        // check if room name is already in use
+        const filterRes = this.rooms.filter(room => room.name === newRoom.name);
+        if (filterRes.length > 0) {
+            console.log(filterRes);
+            return new RoomNameTaken().printError();
+        }
+
+        // define usersInRoom property
+        newRoom.usersInRoom = [];
+
+        // add current user to room
+        newRoom.usersInRoom.push({
+            id: userId,
+            name: 'RoomCreator',
+            email: 'roomCreator@mail.com'
         });
 
-        if (existingUserInRoom) {
-            return new UserAlreadyInRoomError(newUser.name, newUser.room);
-        }
-
-        // Store new user if everything is ok
-        this.users.push(newUser);
-
-        return newUser;
+        // If All checks pass add new room to rooms array
+        this.rooms.push(newRoom);
+        console.log('New room added to array.');
+        return newRoom.name;
     }
 
-    public removeUser = (id: string) => {
-        const index:number = this.users.findIndex(user => user.id === id);
-
-        if (index !== -1) {
-            return this.users.splice(index, 1)[0];
+    fetchRoom = (roomName: string): string | Room => {
+        // check if valid roomName
+        if (roomName === '') {
+            return new InvalidRoomQuery().printError();
         }
+
+        // format roomName for search
+        roomName = roomName.trim().toLowerCase();
+        const foundRoom: Room[] = this.rooms.filter(room => room.name === roomName);
+
+        // check if room exists
+        if (foundRoom.length !== 1) {
+            return new NoSuchRoomExists().printError();
+        }
+
+        console.log(`Found room ${foundRoom[0].name}`)
+
+        return foundRoom[0];
     }
 
-    public getUser = (id: string): CustomUserServiceError | User => {
-        const user: User | undefined = this.users.find(user => user.id === id);
-        if (!user) {
-            return new UserDoesNotExistError();
-        }
-        return user;
+    fetchAllRooms = (): Room[] => {
+        return this.rooms;
     }
 
-    public getUsersInRoom = (room: string) => {
-        room = room.trim().toLowerCase();
-        const usersInRoom: User[] = this.users.filter(user => user.room === room);
+    joinRoom = (id: string, roomName: string, username: string ) => {
+        username = username.trim().toLowerCase();
+        roomName = roomName.trim().toLowerCase();
 
-        // check if there are any users in the room
-        if (usersInRoom.length === 0) {
-            return {
-                info: `The room ${room} currently has no active users!`
+        // validate the data
+        if (!username || !roomName) {
+            return new MissingQueryData().printError();
+        }
+
+        // find room by name
+        const room: Room | undefined = this.rooms.find(room => room.name === roomName);
+
+        // handle if room doesn't exist
+        if (!room) {
+            return new NoSuchRoomExists().printError();
+        }
+
+        let user: User | undefined;
+
+        // check if user already in the room
+        if (room.usersInRoom && room.usersInRoom.length > 0) {
+            user = room.usersInRoom.find(user => user.id === id);
+            // if user found in room return error
+            if (user) {
+                return new UserAlreadyInRoom().printError();
             }
         }
-        // return found users
-        return usersInRoom;
+
+        // if all check passed add user to room's users array
+        room.usersInRoom?.push(user!);
+
+        // get all previous rooms except for the one we are editing
+        let newRoomsArr: Room[] = this.rooms.filter(iterableRoom => iterableRoom.name !== room.name);
+
+        // add room with added user to the newRooms Arr
+        newRoomsArr = [...newRoomsArr, room];
+
+        // store newRoomsArr to this.rooms
+        this.rooms = newRoomsArr;
     }
 }

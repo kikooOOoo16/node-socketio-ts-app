@@ -1,4 +1,4 @@
-import {Message} from "../models/message";
+import {Message} from "../interfaces/message";
 
 export class MessageGeneratorService {
     private static instance: MessageGeneratorService;
@@ -15,6 +15,10 @@ export class MessageGeneratorService {
 
     public generateMessage = (username : string, msgText : string) : Message => {
         const createdAtUnixTime = new Date().getTime();
-        return new Message(username, msgText, createdAtUnixTime);
+        return {
+            author: username,
+            text: msgText,
+            createdAtUnixTime
+        };
     }
 }

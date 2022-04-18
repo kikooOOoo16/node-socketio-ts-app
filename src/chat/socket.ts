@@ -3,60 +3,71 @@ import * as http from "http";
 
 import {UsersService} from './users-service';
 import {MessageGeneratorService} from "./message-generator-service";
-import {CustomUserServiceError} from "./exceptions/CustomUserServiceError";
-import {User} from "../models/user";
+import {Room} from "../interfaces/room";
 
 
 export const socket = (server: http.Server) => {
-    const io = new Server(server);
+    const io = new Server(server, {
+        cors: {
+            origin: ['http://localhost:4200']
+        }
+    });
 
     // get UsersService singleton instance
-    const UsersServiceSingleton = UsersService.getInstance();
+    const usersServiceSingleton = UsersService.getInstance();
     // get MessageGeneratorService singleton instance
-    const MessageGeneratorSingleton = MessageGeneratorService.getInstance();
+    const messageGeneratorSingleton = MessageGeneratorService.getInstance();
 
+    // listen to new connection and get socket instance of the connected party
     io.on('connection', socket => {
         console.log('\nNew Websocket connection.');
 
-        // User triggered join event
-        socket.on('join', ({username, room}, acknowledgementCb) => {
-            const newUser = new User(socket.id, username, room);
-            const res = UsersServiceSingleton.addUser(newUser);
+        // handle incoming createRoom socketIO request
+        socket.on('createRoom', (newRoom: Room, callback) => {
+            console.log(newRoom);
+            const response = usersServiceSingleton.createRoom(newRoom, socket.id);
 
-            if (res instanceof CustomUserServiceError) {
-                return acknowledgementCb(res.printError());
+            // check if response is an error, if not current socket joins the newly created room
+            if (response.split(' ')[0] !== 'Error:') {
+                console.log(`The socket ${socket.id} has joined the room ${response}`);
+
+                socket.join(callback);
+
+                // send greetings message only to socket
+                console.log('Message sent');
+                socket.emit('message', messageGeneratorSingleton.generateMessage('Admin', 'Welcome to the Chat app! Please follow our guidelines.'));
             }
 
-            // join the selected room successfully
-            socket.join(res.room);
-
-            // Give welcome message
-            socket.emit('message', MessageGeneratorSingleton.generateMessage('Admin', `${res.name} welcome to the Chat app.`));
-
-            // Send to all except this socket with broadcast.
-            socket.broadcast.to(newUser.room).emit('message', MessageGeneratorSingleton.generateMessage('Admin', `${newUser.name} has joined the chat.`));
-
-            // Inform room to update its users list
-            io.to(newUser.room).emit('roomUsersUpdate', {
-                room: newUser.room,
-                users: UsersServiceSingleton.getUsersInRoom(newUser.room)
-            });
-            // acknowledgement that the user joined the room
-            acknowledgementCb();
+            // return req acknowledgement response
+            callback(response);
         });
 
-        // user triggered send message event
-        socket.on('sendMessage', (message, acknowledgementCb) => {
-            const getUserRes = UsersServiceSingleton.getUser(socket.id);
+        // handle incoming joinRoom socketIO request
+        socket.on('join', ({username, roomName}, callback) => {
+            const err = usersServiceSingleton.joinRoom(socket.id, username, roomName);
 
-            if (getUserRes instanceof CustomUserServiceError) {
-                return acknowledgementCb(getUserRes.printError());
+            if (err) {
+                callback(err);
+            }
+        })
+
+        // handle incoming fetchRoom socketIO request
+        socket.on('fetchRoom', (roomName: string, callback) => {
+            const roomData: string | Room = usersServiceSingleton.fetchRoom(roomName);
+
+            // if an error occurred return error string
+            if (typeof roomData === 'string') {
+                return callback(roomData);
             }
 
-            // emit message to users room
-            io.to(getUserRes.room).emit('message', MessageGeneratorSingleton.generateMessage(getUserRes.name, message));
-            // acknowledgement of the completion of the sendMessage event
-            acknowledgementCb('Info: Message sent successfully!');
+            // if room was found emit fetchRoom event with roomData
+            socket.emit('fetchRoom', roomData);
+        });
+
+        socket.on('fetchAllRooms', () => {
+            const allRooms: Room[] = usersServiceSingleton.fetchAllRooms();
+            socket.emit('fetchAllRooms', allRooms);
         })
+
     });
 }

@@ -1,14 +1,14 @@
 import {CustomUserServiceError} from "./CustomUserServiceError";
 
-export class UserDataMissingError extends CustomUserServiceError {
+export class MissingQueryData extends CustomUserServiceError {
 
     constructor() {
-        super('The username and room name are required.');
-        Object.setPrototypeOf(this, UserDataMissingError.prototype);
+        super('Missing query data. Please pass all the required data.');
+        Object.setPrototypeOf(this, MissingQueryData.prototype);
     }
 
     printError = (): string => {
-        return 'Error: The username and room name are required.';
+        return 'Error: Missing query data. Please pass all the required data.';
     }
 
 }

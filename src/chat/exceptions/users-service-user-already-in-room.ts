@@ -1,13 +1,14 @@
 import {CustomUserServiceError} from "./CustomUserServiceError";
 
-export class UserAlreadyInRoomError extends CustomUserServiceError {
+export class UserAlreadyInRoom extends CustomUserServiceError {
 
-    constructor(private username: string,private room: string) {
-        super(`The user ${username} is already in the room ${room}.`);
-        Object.setPrototypeOf(this, UserAlreadyInRoomError.prototype);
+    constructor() {
+        super('The user is already in the room.');
+        Object.setPrototypeOf(this, UserAlreadyInRoom.prototype);
     }
 
-    printError() {
-        return `Error: The user ${this.username} is already in the room ${this.room}.`;
+    printError = (): string => {
+        return 'Error: The user is already in the room.';
     }
+
 }
