@@ -24,7 +24,7 @@ export const socket = (server: http.Server) => {
     io.on('connection', socket => {
         console.log('\nNew Websocket connection.');
 
-        // handle incoming createRoom socketIO request
+        // HANDLE INCOMING CREATE ROOM SOCKET_IO REQUEST
         socket.on('createRoom', ({name, email, newRoom}, callback) => {
             // temporary user obj
             const currentUser: User = {
@@ -47,20 +47,12 @@ export const socket = (server: http.Server) => {
             socket.join(response);
 
             // send greetings message only to socket
-            console.log('Create Room: Send greetings from app msg to current socket.');
-            const welcomeMsg: Message = msgGeneratorSingleton.generateMessage('Admin', 'Welcome to the Chat app! Please follow our guidelines.')
-            socket.emit('message', welcomeMsg);
 
-            // send socketIO emit to all users within the room
-            const newUserInRoomMsg: Message = msgGeneratorSingleton.generateMessage('Admin', `${currentUser.name} has joined the chat!`);
-            console.log('Create Room: Send new user in room msg to all users in room.');
-            socket.broadcast.to(response).emit('message', newUserInRoomMsg);
-
-            // return req acknowledgement response with new roomName
-            callback(response);
+            // helper method that sends greeting messages and returns callback to listener
+            sendInitialMessages(currentUser, socket, response, callback);
         });
 
-        // handle incoming joinRoom socketIO request
+        // HANDLE INCOMING JOIN_ROOM SOCKET_IO REQUEST
         socket.on('joinRoom', ({name, email, roomName}, callback) => {
             // temporary user helper obj
             const currentUser: User = {
@@ -78,20 +70,11 @@ export const socket = (server: http.Server) => {
             // if no err socket joins the room
             socket.join(roomName);
 
-            // send greetings message only to socket
-            console.log('Join Room: Send greetings from app msg to current socket.');
-            const welcomeMsg: Message = msgGeneratorSingleton.generateMessage('Admin', 'Welcome to the Chat app! Please follow our guidelines.')
-            socket.emit('message', welcomeMsg);
-
-            // send socketIO emit to all users within the room
-            const newUserInRoomMsg: Message = msgGeneratorSingleton.generateMessage('Admin', `${currentUser.name} has joined the chat!`);
-            console.log('Create Room: Send new user in room msg to all users in room.');
-            socket.broadcast.to(roomName).emit('message', newUserInRoomMsg);
-
-            callback(roomName);
+            // helper method that sends greeting messages and returns callback to listener
+            sendInitialMessages(currentUser, socket, roomName, callback);
         });
 
-        // handle user leaveRoom
+        // HANDLE INCOMING LEAVE_ROOM SOCKET_IO REQUEST
         socket.on('leaveRoom', ({name, email, roomName}, callback) => {
             const currentUser: User = {
                 id: socket.id,
@@ -110,7 +93,7 @@ export const socket = (server: http.Server) => {
             socket.leave(roomName);
         });
 
-        // handle incoming fetchRoom socketIO request
+        // HANDLE INCOMING FETCH_ROOM SOCKET_IO REQUEST
         socket.on('fetchRoom', (roomName: string, callback) => {
             const roomData: string | Room = usersServiceSingleton.fetchRoom(roomName);
 
@@ -123,11 +106,13 @@ export const socket = (server: http.Server) => {
             socket.emit('fetchRoom', roomData);
         });
 
+        // HANDLE INCOMING FETCH_ALL_ROOMS SOCKET_IO REQUEST
         socket.on('fetchAllRooms', () => {
             const allRooms: Room[] = usersServiceSingleton.fetchAllRooms();
             socket.emit('fetchAllRooms', allRooms);
         });
 
+        // HANDLE SEND_MESSAGE SOCKET_IO REQUEST
         socket.on('sendMessage', ({name, email, roomName, message},  callback) => {
             // check if room exists
             const fetchedRoom: string | Room = usersServiceSingleton.fetchRoom(roomName);
@@ -137,8 +122,26 @@ export const socket = (server: http.Server) => {
                 return callback(fetchedRoom);
             }
 
+            // emit socketIO only to sockets that are in the room
             io.to(fetchedRoom.name).emit('message', msgGeneratorSingleton.generateMessage(name, message));
             callback('Info: Message sent successfully!');
         });
     });
+}
+
+const sendInitialMessages = (currentUser: User, socket: any, ioCallResponseRoomName: string, callback: any) => {
+    // get msgGeneratorSingleton instance
+    const msgGeneratorSingleton = MessageGeneratorService.getInstance();
+
+    console.log('Create Room: Send greetings from app msg to current socket.');
+    const welcomeMsg: Message = msgGeneratorSingleton.generateMessage('Admin', 'Welcome to the Chat app! Please follow our guidelines.');
+    socket.emit('message', welcomeMsg);
+
+    // send socketIO emit to all users within the room
+    const newUserInRoomMsg: Message = msgGeneratorSingleton.generateMessage('Admin', `${currentUser.name} has joined the chat!`);
+    console.log('Create Room: Send new user in room msg to all users in room.');
+    socket.broadcast.to(ioCallResponseRoomName).emit('message', newUserInRoomMsg);
+
+    callback(ioCallResponseRoomName);
+
 }

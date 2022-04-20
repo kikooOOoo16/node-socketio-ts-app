@@ -107,21 +107,12 @@ export class UsersService {
 
     // join a room
     joinRoom = (currentUser: User, roomName: string) => {
-        // format data to match stored data
-        currentUser.name = currentUser.name.trim().toLowerCase();
-        roomName = roomName.trim().toLowerCase();
+        // helper method that formats input and checks initial values for wrong input
+        const room = this.checkInputAndFormat(currentUser, roomName);
 
-        // validate the data
-        if (!currentUser.name || !roomName) {
-            return new MissingQueryData().printError();
-        }
-
-        // find room by name
-        const room: Room | undefined = this.rooms.find(room => room.name === roomName);
-
-        // handle if room doesn't exist
-        if (!room) {
-            return new NoSuchRoomExists().printError();
+        // check if proper room obj or error msg
+        if (typeof room === 'string') {
+            return room;
         }
 
         console.log(`JoinRoom: Found room ${room}`);
@@ -159,21 +150,12 @@ export class UsersService {
 
     // leave a room
     leaveRoom = (currentUser: User, roomName: string) => {
-        // format data to match stored data
-        currentUser.name = currentUser.name.trim().toLowerCase();
-        roomName = roomName.trim().toLowerCase();
+        // helper method that formats input and checks initial values for wrong input
+        const room = this.checkInputAndFormat(currentUser, roomName);
 
-        // validate the data
-        if (!currentUser.name || !roomName) {
-            return new MissingQueryData().printError();
-        }
-
-        // find room by name
-        const room: Room | undefined = this.rooms.find(room => room.name === roomName);
-
-        // handle if room doesn't exist
-        if (!room) {
-            return new NoSuchRoomExists().printError();
+        // check if proper room obj or error msg
+        if (typeof room === 'string') {
+            return room;
         }
 
         console.log('Leave Room: Found room ');
@@ -205,5 +187,27 @@ export class UsersService {
 
         console.log('Leave Room: edited the rooms array to contain our edited array without the user');
         console.log(this.rooms);
+    }
+
+    // helper method that formats input and checks initial values for wrong input
+    checkInputAndFormat = (currentUser: User, roomName: string): string | Room => {
+        // format data to match stored data
+        currentUser.name = currentUser.name.trim().toLowerCase();
+        roomName = roomName.trim().toLowerCase();
+
+        // validate the data
+        if (!currentUser.name || !roomName) {
+            return new MissingQueryData().printError();
+        }
+
+        // find room by name
+        const room: Room | undefined = this.rooms.find(room => room.name === roomName);
+
+        // handle if room doesn't exist
+        if (!room) {
+            return new NoSuchRoomExists().printError();
+        }
+        // return found room
+        return room;
     }
 }
