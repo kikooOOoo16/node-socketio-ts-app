@@ -1,11 +1,18 @@
-import express, {Request, Response} from 'express';
+import express from 'express';
 import bodyParser from 'body-parser';
+import {userRoutes} from './routes/user';
+
+// just import and run the file
+import './db/mongoose';
 
 export const app = express();
 
 // setup body parser
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({extended: false}));
+
+// parse incoming JSON
+app.use(express.json());
 
 // Allow CORS communication
 app.use((req, res, next) => {
@@ -21,7 +28,5 @@ app.use((req, res, next) => {
     next();
 });
 
-app.get('/', (req: Request, res: Response, next) => {
-    return res.send('Hello World from TS express.');
-});
-
+// define app routes
+app.use('/user', userRoutes);

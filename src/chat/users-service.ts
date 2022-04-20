@@ -1,4 +1,4 @@
-import {User} from "../interfaces/user";
+import {UserDocument} from "../interfaces/userDocument";
 import {Room} from "../interfaces/room";
 import {RoomNameTaken} from "./exceptions/users-service-room-name-taken";
 import {RoomDataMissing} from "./exceptions/users-service-room-data-missing";
@@ -14,7 +14,7 @@ const validRoomObjKeyValues = ['author', 'name', 'description'];
 export class UsersService {
     private static instance: UsersService;
     private rooms: Room[] = [];
-    private users: User[] = [];
+    private users: UserDocument[] = [];
 
     private constructor() {
     }
@@ -27,7 +27,7 @@ export class UsersService {
     }
 
     // Create new room
-    createRoom = (currentUser: User, newRoom: Room) : string => {
+    createRoom = (currentUser: UserDocument, newRoom: Room) : string => {
 
         // format new room name to avoid duplicate names
         newRoom.name = newRoom.name.trim().toLowerCase();
@@ -106,7 +106,7 @@ export class UsersService {
     }
 
     // join a room
-    joinRoom = (currentUser: User, roomName: string) => {
+    joinRoom = (currentUser: UserDocument, roomName: string) => {
         // helper method that formats input and checks initial values for wrong input
         const room = this.checkInputAndFormat(currentUser, roomName);
 
@@ -149,7 +149,7 @@ export class UsersService {
     }
 
     // leave a room
-    leaveRoom = (currentUser: User, roomName: string) => {
+    leaveRoom = (currentUser: UserDocument, roomName: string) => {
         // helper method that formats input and checks initial values for wrong input
         const room = this.checkInputAndFormat(currentUser, roomName);
 
@@ -190,7 +190,7 @@ export class UsersService {
     }
 
     // helper method that formats input and checks initial values for wrong input
-    checkInputAndFormat = (currentUser: User, roomName: string): string | Room => {
+    checkInputAndFormat = (currentUser: UserDocument, roomName: string): string | Room => {
         // format data to match stored data
         currentUser.name = currentUser.name.trim().toLowerCase();
         roomName = roomName.trim().toLowerCase();

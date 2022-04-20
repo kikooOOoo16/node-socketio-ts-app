@@ -4,14 +4,13 @@ import * as http from "http";
 import {UsersService} from './users-service';
 import {MessageGeneratorService} from "./message-generator-service";
 import {Room} from "../interfaces/room";
-import {User} from "../interfaces/user";
+import {UserDocument} from "../interfaces/userDocument";
 import {Message} from "../interfaces/message";
-
 
 export const socket = (server: http.Server) => {
     const io = new Server(server, {
         cors: {
-            origin: ['http://localhost:4200']
+            origin: [process.env.NG_APP_URL]
         }
     });
 
@@ -27,7 +26,7 @@ export const socket = (server: http.Server) => {
         // HANDLE INCOMING CREATE ROOM SOCKET_IO REQUEST
         socket.on('createRoom', ({name, email, newRoom}, callback) => {
             // temporary user obj
-            const currentUser: User = {
+            const currentUser: UserDocument = {
                 id: socket.id,
                 name,
                 email
@@ -55,7 +54,7 @@ export const socket = (server: http.Server) => {
         // HANDLE INCOMING JOIN_ROOM SOCKET_IO REQUEST
         socket.on('joinRoom', ({name, email, roomName}, callback) => {
             // temporary user helper obj
-            const currentUser: User = {
+            const currentUser: UserDocument = {
                 id: socket.id,
                 name,
                 email
@@ -76,7 +75,7 @@ export const socket = (server: http.Server) => {
 
         // HANDLE INCOMING LEAVE_ROOM SOCKET_IO REQUEST
         socket.on('leaveRoom', ({name, email, roomName}, callback) => {
-            const currentUser: User = {
+            const currentUser: UserDocument = {
                 id: socket.id,
                 name,
                 email
@@ -129,7 +128,7 @@ export const socket = (server: http.Server) => {
     });
 }
 
-const sendInitialMessages = (currentUser: User, socket: any, ioCallResponseRoomName: string, callback: any) => {
+const sendInitialMessages = (currentUser: UserDocument, socket: any, ioCallResponseRoomName: string, callback: any) => {
     // get msgGeneratorSingleton instance
     const msgGeneratorSingleton = MessageGeneratorService.getInstance();
 

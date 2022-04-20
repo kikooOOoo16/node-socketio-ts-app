@@ -1,6 +1,5 @@
-export interface User {
-    id: string;
-    name: string;
-    email: string;
-    currentRoom?: string;
+import {UserDocument} from "./userDocument";
+
+export interface User extends UserDocument {
+    generateAuthToken(): string;
 }
