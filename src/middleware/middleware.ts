@@ -6,7 +6,7 @@ import {UserTokenPayload} from "../interfaces/userTokenPayload";
 // check authentication middleware
 const auth = async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const token: string = req.header('Authorization')?.replace('Bearer', '')!;
+        const token: string = req.headers!.authorization!.split(' ')[1];
         // cast decodedToken to UserTokenPayload
         const decodedToken = (jwt.verify(token, process.env.JWT_SECRET)) as UserTokenPayload;
         // find user by using the _id from the token
@@ -23,8 +23,9 @@ const auth = async (req: Request, res: Response, next: NextFunction) => {
         // continue chain
         next();
     } catch (e) {
+        console.log(e);
         res.status(401).json({
-            message: 'Unauthorized action!'
+            message: 'Error: Unauthorized action!'
         })
     }
 }

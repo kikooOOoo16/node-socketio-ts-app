@@ -1,6 +1,7 @@
 import express from 'express';
 import {User} from "../db/models/user";
 import {auth} from "../middleware/middleware";
+import {UserNameTaken} from "../chat/exceptions/users-service-user-name-taken";
 
 const router = express.Router();
 
@@ -14,9 +15,13 @@ router // POST new user signup
             res.status(201).json({
                 message: 'New user created.',
                 user,
-                token
+                token,
+                expiresIn: 3600
             });
         } catch ({message}) {
+            if (message.split(' ')[0] === 'E11000') {
+                message = new UserNameTaken().printError();
+            }
             res.status(400).json({
                 message
             });
@@ -32,7 +37,8 @@ router // POST new user signup
             // res found user and token
             res.status(200).json({
                 user,
-                token
+                token,
+                expiresIn: 3600
             });
         } catch ({message}) {
             res.status(400).json({
@@ -44,6 +50,7 @@ router // POST new user signup
         try {
             // filter user tokens that aren't equal to req token
             req.user!.tokens = req.user!.tokens!.filter((token: any) => token.token !== req.token);
+
             // save user data without current req token
             await req.user!.save();
             res.status(200).json({
@@ -51,7 +58,7 @@ router // POST new user signup
             });
         } catch (e) {
             res.status(500).json({
-                message: 'User logout failed!'
+                message: 'Error: User logout failed!'
             });
         }
     }) // POST log user out of all sessions
@@ -65,7 +72,7 @@ router // POST new user signup
             });
         } catch (e) {
             res.status(500).json({
-                message: 'User logout failed.'
+                message: 'Error: User logout failed.'
             });
         }
     }) // GET user data

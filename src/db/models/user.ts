@@ -20,7 +20,7 @@ const userSchema: Schema = new Schema({
         lowercase: true,
         validate(value: string) {
             if (!validator.isEmail(value)) {
-                throw new Error('The entered email is invalid.');
+                throw new Error('Error: The entered email is invalid.');
             }
         }
     },
@@ -31,7 +31,7 @@ const userSchema: Schema = new Schema({
         trim: true,
         validate(value: string) {
             if (value.toLowerCase().includes('password')) {
-                throw new Error(`The password cannot contain the word "password".`);
+                throw new Error(`Error: The password cannot contain the word "password".`);
             }
         }
     },
@@ -89,12 +89,12 @@ userSchema.static('findByCredentials', async (email, password) => {
     const user = await User.findOne({email});
     // check if user with that email exists
     if (!user) {
-        throw new Error('User authentication failed! Invalid credentials.');
+        throw new Error('Error: User authentication failed! Invalid credentials.');
     }
     // check if encrypted password matches user's saved encrypted password
     const isMatch = await bcrypt.compare(password, user.password!);
     if (!isMatch) {
-        throw new Error('User authentication failed! Invalid credentials.');
+        throw new Error('Error: User authentication failed! Invalid credentials.');
     }
     // if all is well return user
     return user;
