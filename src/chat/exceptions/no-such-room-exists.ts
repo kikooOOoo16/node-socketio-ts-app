@@ -1,6 +1,6 @@
-import {CustomUserServiceError} from "./CustomUserServiceError";
+import {CustomException} from "./custom-exception";
 
-export class NoSuchRoomExists extends CustomUserServiceError {
+export class NoSuchRoomExists extends CustomException {
 
     constructor() {
         super(`The requested room doesn't exist.`);

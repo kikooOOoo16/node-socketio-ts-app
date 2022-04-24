@@ -1,6 +1,6 @@
-import {CustomUserServiceError} from "./CustomUserServiceError";
+import {CustomException} from "./custom-exception";
 
-export class InvalidRoomQuery extends CustomUserServiceError {
+export class InvalidRoomQuery extends CustomException {
 
     constructor() {
         super(`Invalid query. The requested room couldn't be found.`);

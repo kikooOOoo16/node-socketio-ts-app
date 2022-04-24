@@ -1,6 +1,6 @@
-import {CustomUserServiceError} from "./CustomUserServiceError";
+import {CustomException} from "./custom-exception";
 
-export class RoomNameTaken extends CustomUserServiceError {
+export class RoomNameTaken extends CustomException {
 
     constructor() {
         super('That room name already exists, please choose a different one.');

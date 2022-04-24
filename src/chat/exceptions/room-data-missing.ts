@@ -1,6 +1,6 @@
-import {CustomUserServiceError} from "./CustomUserServiceError";
+import {CustomException} from "./custom-exception";
 
-export class RoomDataMissing extends CustomUserServiceError {
+export class RoomDataMissing extends CustomException {
 
     constructor() {
         super('Required room data is missing. Please pass all the required data.');

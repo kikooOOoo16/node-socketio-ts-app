@@ -2,6 +2,7 @@ import * as jwt from 'jsonwebtoken';
 import {Request, Response, NextFunction} from 'express';
 import {User} from "../db/models/user";
 import {UserTokenPayload} from "../interfaces/userTokenPayload";
+import {JsonWebTokenError} from "jsonwebtoken";
 
 // check authentication middleware
 const auth = async (req: Request, res: Response, next: NextFunction) => {
@@ -22,11 +23,15 @@ const auth = async (req: Request, res: Response, next: NextFunction) => {
 
         // continue chain
         next();
-    } catch (e) {
-        console.log(e);
+    } catch (err) {
+        let message = 'Error: Unauthorized action!';
+        console.log(err.message);
+        if (typeof (err == JsonWebTokenError)) {
+            message = 'Error: User token has expired.';
+        }
         res.status(401).json({
-            message: 'Error: Unauthorized action!'
-        })
+            message
+        });
     }
 }
 

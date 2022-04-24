@@ -6,11 +6,7 @@ import {MessageGeneratorService} from "./message-generator-service";
 import {UsersService} from "./users-service";
 import {Room} from "../interfaces/room";
 import {Message} from "../interfaces/message";
-import {UnauthorizedAction} from "./exceptions/users-service-unauthorized-action";
 import {User} from "../interfaces/user";
-import * as jwt from "jsonwebtoken";
-import {UserTokenPayload} from "../interfaces/userTokenPayload";
-import {User as UserModel} from "../db/models/user";
 
 export const socket = (server: http.Server) => {
     const io = new Server(server, {
@@ -32,14 +28,8 @@ export const socket = (server: http.Server) => {
 
         // HANDLE INCOMING CREATE ROOM SOCKET_IO REQUEST
         socket.on('createRoom', async ({token, newRoom}, callback) => {
-            // check user auth with token in request
-            const decodedToken = (jwt.verify(token, process.env.JWT_SECRET)) as UserTokenPayload;
-            // find user by using the _id from the token
-            const currentUser = await UserModel.findOne({_id: decodedToken._id, 'tokens.token': token});
-            // check if currentUser was found
-            if (!currentUser) {
-                return callback(new UnauthorizedAction().printError());
-            }
+            // verify user token helper
+            const {currentUser} = await usersServiceSingleton.verifyUserToken(token, callback);
 
             // response is error if there was a problem and roomName if not
             const response = roomsServiceSingleton.createRoom(currentUser, newRoom);
@@ -59,17 +49,11 @@ export const socket = (server: http.Server) => {
         });
 
         // HANDLE INCOMING JOIN_ROOM SOCKET_IO REQUEST
-        socket.on('joinRoom', async({token, roomName}, callback) => {
-            // check user auth with token in request
-            const decodedToken = (jwt.verify(token, process.env.JWT_SECRET)) as UserTokenPayload;
-            // find user by using the _id from the token
-            const currentUser = await UserModel.findOne({_id: decodedToken._id, 'tokens.token': token});
+        socket.on('joinRoom', async ({token, roomName}, callback) => {
+            // verify user token helper
+            const {currentUser} = await usersServiceSingleton.verifyUserToken(token, callback);
 
-            // check if currentUser was found
-            if (!currentUser) {
-                return callback(new UnauthorizedAction().printError());
-            }
-
+            // update rooms state
             const err = roomsServiceSingleton.joinRoom(currentUser, roomName);
 
             // if err return callback with err message
@@ -85,15 +69,10 @@ export const socket = (server: http.Server) => {
 
         // HANDLE INCOMING LEAVE_ROOM SOCKET_IO REQUEST
         socket.on('leaveRoom', async ({token, roomName}, callback) => {
-            // check user auth with token in request
-            const decodedToken = (jwt.verify(token, process.env.JWT_SECRET)) as UserTokenPayload;
-            // find user by using the _id from the token
-            const currentUser = await UserModel.findOne({_id: decodedToken._id, 'tokens.token': token});
-            // check if currentUser was found
-            if (!currentUser) {
-                return callback(new UnauthorizedAction().printError());
-            }
+            // verify user token helper
+            const {currentUser} = await usersServiceSingleton.verifyUserToken(token, callback);
 
+            // update roomsState by removing the user
             const err = roomsServiceSingleton.leaveRoom(currentUser, roomName);
 
             // if err return callback with err message
@@ -107,54 +86,43 @@ export const socket = (server: http.Server) => {
 
         // HANDLE INCOMING FETCH_ROOM SOCKET_IO REQUEST
         socket.on('fetchRoom', async ({token, roomName}, callback) => {
-            // check user auth with token in request
-            const decodedToken = (jwt.verify(token, process.env.JWT_SECRET)) as UserTokenPayload;
-            // find user by using the _id from the token
-            const currentUser = await UserModel.findOne({_id: decodedToken._id, 'tokens.token': token});
-            // check if currentUser was found
-            if (!currentUser) {
-                return callback(new UnauthorizedAction().printError());
-            }
+            // verify user token helper
+            await usersServiceSingleton.verifyUserToken(token, callback);
 
-            const roomData: string | Room = roomsServiceSingleton.fetchRoom(roomName);
+            // fetch room by room name
+            const {room, err} = roomsServiceSingleton.fetchRoom(roomName);
 
             // if an error occurred return error string
-            if (typeof roomData === 'string') {
-                return callback(roomData);
+            if (err !== '') {
+                return callback(err);
             }
-
             // if room was found emit fetchRoom event with roomData
-            socket.emit('fetchRoom', roomData);
+            socket.emit('fetchRoom', room);
         });
 
         // HANDLE INCOMING FETCH_ALL_ROOMS SOCKET_IO REQUEST
         socket.on('fetchAllRooms', async ({token}, callback) => {
-            // check user auth with token in request
-            const decodedToken = (jwt.verify(token, process.env.JWT_SECRET)) as UserTokenPayload;
-            // find user by using the _id from the token
-            const currentUser = await UserModel.findOne({_id: decodedToken._id, 'tokens.token': token});
-
-            // check if currentUser was found
-            if (!currentUser) {
-                return callback(new UnauthorizedAction().printError());
-            }
-
+            // verify user token helper
+            await usersServiceSingleton.verifyUserToken(token, callback);
+            // fetch all created rooms
             const allRooms: Room[] = roomsServiceSingleton.fetchAllRooms();
+            // emit fetchAllRooms SocketIO request by sending all created rooms
             socket.emit('fetchAllRooms', allRooms);
         });
 
         // HANDLE SEND_MESSAGE SOCKET_IO REQUEST
-        socket.on('sendMessage', ({name, email, roomName, message}, callback) => {
-            // check if room exists
-            const fetchedRoom: string | Room = roomsServiceSingleton.fetchRoom(roomName);
+        socket.on('sendMessage', async ({token, roomName, message}, callback) => {
+            const {currentUser} = await usersServiceSingleton.verifyUserToken(token, callback);
 
-            if (typeof fetchedRoom === 'string') {
-                // return error
-                return callback(fetchedRoom);
+            // check if room exists
+            const {room, err} = roomsServiceSingleton.fetchRoom(roomName);
+
+            if (err !== '') {
+                return callback(err);
             }
 
             // emit socketIO only to sockets that are in the room
-            io.to(fetchedRoom.name).emit('message', msgGeneratorSingleton.generateMessage(name, message));
+            io.to(room!.name).emit('message', msgGeneratorSingleton.generateMessage(currentUser.name, message));
             callback('Info: Message sent successfully!');
         });
     });

@@ -1,6 +1,6 @@
-import {CustomUserServiceError} from "./CustomUserServiceError";
+import {CustomException} from "./custom-exception";
 
-export class MissingQueryData extends CustomUserServiceError {
+export class MissingQueryData extends CustomException {
 
     constructor() {
         super('Missing query data. Please pass all the required data.');

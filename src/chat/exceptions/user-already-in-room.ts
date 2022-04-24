@@ -1,6 +1,6 @@
-import {CustomUserServiceError} from "./CustomUserServiceError";
+import {CustomException} from "./custom-exception";
 
-export class UserAlreadyInRoom extends CustomUserServiceError {
+export class UserAlreadyInRoom extends CustomException {
 
     constructor() {
         super('The user is already in the room.');

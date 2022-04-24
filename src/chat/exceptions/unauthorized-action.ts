@@ -1,6 +1,6 @@
-import {CustomUserServiceError} from "./CustomUserServiceError";
+import {CustomException} from "./custom-exception";
 
-export class UnauthorizedAction extends CustomUserServiceError {
+export class UnauthorizedAction extends CustomException {
 
     constructor() {
         super(`Unauthorized action!`);

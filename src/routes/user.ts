@@ -1,7 +1,7 @@
 import express from 'express';
 import {User} from "../db/models/user";
 import {auth} from "../middleware/middleware";
-import {UserNameTaken} from "../chat/exceptions/users-service-user-name-taken";
+import {UserNameTaken} from "../chat/exceptions/user-name-taken";
 
 const router = express.Router();
 

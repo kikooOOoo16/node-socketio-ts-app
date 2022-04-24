@@ -1,6 +1,6 @@
-import {CustomUserServiceError} from "./CustomUserServiceError";
+import {CustomException} from "./custom-exception";
 
-export class UserNameTaken extends CustomUserServiceError {
+export class UserNameTaken extends CustomException {
 
     constructor() {
         super('Error: That username is already taken.');
