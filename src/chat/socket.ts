@@ -4,7 +4,6 @@ import * as http from "http";
 import {RoomsService} from './rooms-service';
 import {MessageGeneratorService} from "./message-generator-service";
 import {UsersService} from "./users-service";
-import {Room} from "../interfaces/room";
 import {Message} from "../interfaces/message";
 import {User} from "../interfaces/user";
 
@@ -29,10 +28,15 @@ export const socket = (server: http.Server) => {
         // HANDLE INCOMING CREATE ROOM SOCKET_IO REQUEST
         socket.on('createRoom', async ({token, newRoom}, callback) => {
             // verify user token helper
-            const {currentUser} = await usersServiceSingleton.verifyUserToken(token, callback);
+            const {currentUser, err} = await usersServiceSingleton.verifyUserToken(token);
+
+            // check if verifyUserToken returned an error
+            if (err !== '') {
+                return callback(err);
+            }
 
             // response is error if there was a problem and roomName if not
-            const response = roomsServiceSingleton.createRoom(currentUser, newRoom);
+            const response = await roomsServiceSingleton.createRoom(currentUser!, newRoom);
 
             // check if response is an error, if not current socket joins the newly created room
             if (response.split(' ')[0] === 'Error:') {
@@ -45,56 +49,84 @@ export const socket = (server: http.Server) => {
             socket.join(response);
 
             // helper method that sends greeting messages and returns callback to listener
-            sendInitialMessages(currentUser, socket, response, callback);
+            await sendInitialMessages(currentUser!, socket, response, callback);
         });
 
         // HANDLE INCOMING JOIN_ROOM SOCKET_IO REQUEST
         socket.on('joinRoom', async ({token, roomName}, callback) => {
             // verify user token helper
-            const {currentUser} = await usersServiceSingleton.verifyUserToken(token, callback);
+            const {currentUser, err} = await usersServiceSingleton.verifyUserToken(token);
+
+            // check if verifyUserToken returned an error
+            if (err !== '') {
+                return callback(err);
+            }
 
             // update rooms state
-            const err = roomsServiceSingleton.joinRoom(currentUser, roomName);
+            const joinRoomErr = await roomsServiceSingleton.joinRoom(currentUser!, roomName);
 
             // if err return callback with err message
-            if (err) {
-                callback(err);
+            if (joinRoomErr) {
+                callback(joinRoomErr);
             }
             // if no err socket joins the room
             socket.join(roomName);
 
+            // send roomUsersUpdate to all sockets in current room
+            await sendUsersInRoomUpdate(io, roomName, callback);
+
             // helper method that sends greeting messages and returns callback to listener
-            sendInitialMessages(currentUser, socket, roomName, callback);
+            await sendInitialMessages(currentUser!, socket, roomName, callback);
         });
 
         // HANDLE INCOMING LEAVE_ROOM SOCKET_IO REQUEST
         socket.on('leaveRoom', async ({token, roomName}, callback) => {
             // verify user token helper
-            const {currentUser} = await usersServiceSingleton.verifyUserToken(token, callback);
+            const {currentUser, err} = await usersServiceSingleton.verifyUserToken(token);
 
-            // update roomsState by removing the user
-            const err = roomsServiceSingleton.leaveRoom(currentUser, roomName);
-
-            // if err return callback with err message
-            if (err) {
+            // check if verifyUserToken returned an error
+            if (err !== '') {
                 return callback(err);
             }
 
+            // update roomsState by removing the user
+            const leaveRoomErr = await roomsServiceSingleton.leaveRoom(currentUser!, roomName);
+
+            // if err return callback with err message
+            if (leaveRoomErr) {
+                return callback(leaveRoomErr);
+            }
+
+            console.log('LeaveRoom: roomName = ');
+            console.log(roomName);
+
+            // send roomUsersUpdate to all sockets in current room
+            await sendUsersInRoomUpdate(io, roomName, callback);
+
             // if no error user leaves socketIO group
             socket.leave(roomName);
+
+            // send socketIO emit to all users within the room
+            const userLeftMsg: Message = msgGeneratorSingleton.generateMessage('Admin', `${currentUser!.name} has left the chat.`);
+            console.log('Leave Room: Send user left room msg to all users in room.');
+            io.to(roomName).emit('message', userLeftMsg);
         });
 
         // HANDLE INCOMING FETCH_ROOM SOCKET_IO REQUEST
         socket.on('fetchRoom', async ({token, roomName}, callback) => {
             // verify user token helper
-            await usersServiceSingleton.verifyUserToken(token, callback);
+            const {err} = await usersServiceSingleton.verifyUserToken(token);
 
-            // fetch room by room name
-            const {room, err} = roomsServiceSingleton.fetchRoom(roomName);
-
-            // if an error occurred return error string
+            // check if verifyUserToken returned an error
             if (err !== '') {
                 return callback(err);
+            }
+            // fetch room by room name
+            const {room, fetchRoomErr} = await roomsServiceSingleton.fetchRoom(roomName);
+
+            // if an error occurred return error string
+            if (fetchRoomErr !== '') {
+                return callback(fetchRoomErr);
             }
             // if room was found emit fetchRoom event with roomData
             socket.emit('fetchRoom', room);
@@ -103,32 +135,50 @@ export const socket = (server: http.Server) => {
         // HANDLE INCOMING FETCH_ALL_ROOMS SOCKET_IO REQUEST
         socket.on('fetchAllRooms', async ({token}, callback) => {
             // verify user token helper
-            await usersServiceSingleton.verifyUserToken(token, callback);
+            const {err: verifyTokenErr} = await usersServiceSingleton.verifyUserToken(token);
+
+            // check if verifyUserToken returned an error
+            if (verifyTokenErr !== '') {
+                return callback(verifyTokenErr);
+            }
             // fetch all created rooms
-            const allRooms: Room[] = roomsServiceSingleton.fetchAllRooms();
+            const {allRooms, err: fetchAllRoomsError} = await roomsServiceSingleton.fetchAllRooms();
+            // if an error occurred return error string
+            if (fetchAllRoomsError !== '') {
+                return callback(fetchAllRoomsError);
+            }
             // emit fetchAllRooms SocketIO request by sending all created rooms
+            console.log('FetchAllRooms');
+            console.log(allRooms);
+
             socket.emit('fetchAllRooms', allRooms);
         });
 
         // HANDLE SEND_MESSAGE SOCKET_IO REQUEST
         socket.on('sendMessage', async ({token, roomName, message}, callback) => {
-            const {currentUser} = await usersServiceSingleton.verifyUserToken(token, callback);
+            // verify user token helper
+            const {currentUser, err} = await usersServiceSingleton.verifyUserToken(token);
 
-            // check if room exists
-            const {room, err} = roomsServiceSingleton.fetchRoom(roomName);
-
+            // check if verifyUserToken returned an error
             if (err !== '') {
                 return callback(err);
             }
+            // check if room exists
+            const {room, fetchRoomErr} = await roomsServiceSingleton.fetchRoom(roomName);
+
+            // return fetchRoom err
+            if (fetchRoomErr !== '') {
+                return callback(fetchRoomErr);
+            }
 
             // emit socketIO only to sockets that are in the room
-            io.to(room!.name).emit('message', msgGeneratorSingleton.generateMessage(currentUser.name, message));
+            io.to(room!.name).emit('message', msgGeneratorSingleton.generateMessage(currentUser!.name, message));
             callback('Info: Message sent successfully!');
         });
     });
 }
 
-const sendInitialMessages = (currentUser: User, socket: any, ioCallResponseRoomName: string, callback: any) => {
+const sendInitialMessages = async (currentUser: User, socket: any, ioCallResponseRoomName: string, callback: any) => {
     // get msgGeneratorSingleton instance
     const msgGeneratorSingleton = MessageGeneratorService.getInstance();
 
@@ -137,9 +187,20 @@ const sendInitialMessages = (currentUser: User, socket: any, ioCallResponseRoomN
     socket.emit('message', welcomeMsg);
 
     // send socketIO emit to all users within the room
-    const newUserInRoomMsg: Message = msgGeneratorSingleton.generateMessage('Admin', `${currentUser.name} has joined the chat!`);
+    const newUserInRoomMsg: Message = msgGeneratorSingleton.generateMessage('Admin', `${currentUser.name} has joined the chat.`);
     console.log('Create Room: Send new user in room msg to all users in room.');
     socket.broadcast.to(ioCallResponseRoomName).emit('message', newUserInRoomMsg);
 
     callback(ioCallResponseRoomName);
+}
+
+const sendUsersInRoomUpdate = async (io: Server, roomName: string, callback: any) => {
+    // get latest room data
+    const {room, fetchRoomErr} = await RoomsService.getInstance().fetchRoom(roomName);
+    // check for errors
+    if (fetchRoomErr !== '') {
+        return callback(fetchRoomErr);
+    }
+    // send socketIO roomUsersUpdate emit to all users within the room
+    io.to(roomName).emit('roomUsersUpdate', room);
 }

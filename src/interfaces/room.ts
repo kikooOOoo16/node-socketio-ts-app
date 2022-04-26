@@ -1,7 +1,8 @@
+import {Schema} from "mongoose";
 
 export interface Room {
-    author: string; // string for now later replace with user id
+    author: Schema.Types.ObjectId;
     name: string;
     description: string;
-    usersInRoom?: string[];
+    usersInRoom?: Schema.Types.ObjectId[];
 }

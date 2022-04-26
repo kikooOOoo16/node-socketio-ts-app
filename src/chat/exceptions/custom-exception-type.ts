@@ -9,5 +9,7 @@ export enum customExceptionType {
     missingQueryData = 'MISSING_QUERY_DATA',
     noSuchRoomExists = 'NO_SUCH_ROOM_EXISTS',
     roomDataMissing = 'ROOM_DATA_MISSING',
-    roomNameTaken = 'ROOM_NAME_TAKEN'
+    roomNameTaken = 'ROOM_NAME_TAKEN',
+    problemRetrievingData = 'PROBLEM_RETRIEVING_DATA',
+    problemAddingUserToRoom = 'PROBLEM_ADDING_USER_TO_ROOM'
 }

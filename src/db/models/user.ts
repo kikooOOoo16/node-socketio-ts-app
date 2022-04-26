@@ -48,7 +48,7 @@ const userSchema: Schema = new Schema({
 });
 
 // User doesn't hold any room data, this is just for mongoose to know the relationship
-userSchema.virtual('rooms', {
+userSchema.virtual('userRooms', {
     ref: 'Room',
     localField: '_id',
     foreignField: 'author'

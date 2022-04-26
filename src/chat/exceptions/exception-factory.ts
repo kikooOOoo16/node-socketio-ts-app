@@ -10,6 +10,8 @@ import {UserAlreadyInRoom} from "./user-already-in-room";
 import {UserDataMissing} from "./user-data-missing";
 import {UserNameTaken} from "./user-name-taken";
 import {UserNotInRoom} from "./user-not-in-room";
+import {ProblemRetrievingData} from "./problem-retrieving-data";
+import {ProblemAddingUserToRoom} from "./problem-adding-user-to-room";
 
 export class ExceptionFactory {
     static createException = (exceptionType: customExceptionType)  => {
@@ -36,6 +38,10 @@ export class ExceptionFactory {
                 return new UserNameTaken();
             case customExceptionType.userNotInRoom:
                 return new UserNotInRoom();
+            case customExceptionType.problemRetrievingData:
+                return new ProblemRetrievingData();
+            case customExceptionType.problemAddingUserToRoom:
+                return new ProblemAddingUserToRoom();
         }
     }
 }

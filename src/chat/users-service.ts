@@ -10,7 +10,6 @@ export class UsersService {
     private static instance: UsersService;
     private customException!: CustomException;
 
-
     private constructor() {
     }
 
@@ -21,16 +20,18 @@ export class UsersService {
         return UsersService.instance;
     }
 
-    verifyUserToken = async (token: string, callback: any): Promise<{ currentUser: User, decodedToken: UserTokenPayload}> => {
+    verifyUserToken = async (token: string): Promise<{ currentUser: User | undefined, err: String}> => {
+        let err = '';
         let decodedToken;
         try {
             // check user auth with token in request
             decodedToken = (jwt.verify(token, process.env.JWT_SECRET)) as UserTokenPayload;
         } catch (e) {
-            // catch token error
+            // catch token error and return err message
             // get customException type from exceptionFactory
             this.customException = ExceptionFactory.createException(customExceptionType.expiredUserToken);
-            return callback(this.customException.printError());
+            err = this.customException.printError();
+            return {currentUser: undefined, err};
         }
         // find user by using the _id from the token
         const currentUser: User | null = await UserModel.findOne({_id: decodedToken._id, 'tokens.token': token});
@@ -38,8 +39,14 @@ export class UsersService {
         if (!currentUser) {
             // get customException type from exceptionFactory and return unauthorizedAction error
             this.customException = ExceptionFactory.createException(customExceptionType.unauthorizedAction);
-            return callback(this.customException.printError());
+            err = this.customException.printError();
+            return {currentUser: undefined, err};
         }
-        return ({currentUser, decodedToken});
+        // if all is good return currentUser
+        return {currentUser, err};
+    }
+
+    removeUserFromAllRooms = () => {
+
     }
 }
