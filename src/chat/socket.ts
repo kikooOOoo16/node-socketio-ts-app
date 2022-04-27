@@ -36,20 +36,26 @@ export const socket = (server: http.Server) => {
             }
 
             // response is error if there was a problem and roomName if not
-            const response = await roomsServiceSingleton.createRoom(currentUser!, newRoom);
+            const {roomName, createRoomErr} = await roomsServiceSingleton.createRoom(currentUser!, newRoom);
 
             // check if response is an error, if not current socket joins the newly created room
-            if (response.split(' ')[0] === 'Error:') {
-                return callback(response);
+            if (createRoomErr !== '') {
+                return callback(createRoomErr);
             }
 
-            console.log(`Create Room: The socket ${socket.id} has joined the room ${response}`);
+            // send roomUsersUpdate to all sockets in current room
+            await sendUsersInRoomUpdate(io, roomName!, callback);
+
+            // send roomsListUpdate to all sockets
+            await sendRoomsListUpdate(io, callback);
+
+            console.log(`Create Room: The socket ${socket.id} has joined the room ${roomName}`);
 
             // if no err current user joins chat group, response is the room name
-            socket.join(response);
+            socket.join(roomName!);
 
             // helper method that sends greeting messages and returns callback to listener
-            await sendInitialMessages(currentUser!, socket, response, callback);
+            await sendInitialMessages(currentUser!, socket, roomName!, callback);
         });
 
         // HANDLE INCOMING JOIN_ROOM SOCKET_IO REQUEST
@@ -203,4 +209,16 @@ const sendUsersInRoomUpdate = async (io: Server, roomName: string, callback: any
     }
     // send socketIO roomUsersUpdate emit to all users within the room
     io.to(roomName).emit('roomUsersUpdate', room);
+}
+
+const sendRoomsListUpdate = async (io: Server, callback: any) => {
+    // fetch all rooms
+    const {allRooms, err} = await RoomsService.getInstance().fetchAllRooms();
+
+    // check for errors
+    if (err !== '') {
+        return callback(err);
+    }
+    // send socketIO roomsListUpdate emit to all users
+    io.emit('roomsListUpdate', allRooms);
 }

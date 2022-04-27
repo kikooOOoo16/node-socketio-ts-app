@@ -55,10 +55,10 @@ userSchema.virtual('userRooms', {
 });
 
 // Custom Mongoose Instance methods
-// don't use arrow function because this will point to global
+// don't use arrow function because 'this' will point to global
 userSchema.methods.generateAuthToken = async function () {
     const user = this;
-    const token = jwt.sign({_id: user._id.toString()}, process.env.JWT_SECRET, {expiresIn: '1h'});
+    const token = jwt.sign({_id: user._id.toString()}, process.env.JWT_SECRET, {expiresIn: '2h'});
 
     // save user token to DB
     user.tokens = user.tokens.concat({token});

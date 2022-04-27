@@ -21,13 +21,14 @@ export class RoomsService {
     }
 
     // Create new room
-    createRoom = async (currentUser: User, newRoom: Room): Promise<string> => {
-
+    createRoom = async (currentUser: User, newRoom: Room): Promise<{ roomName: string | undefined, createRoomErr: string }> => {
+        let createRoomErr = '';
         // check if all data provided for newRoom
         if (newRoom.name === '' || newRoom.description === '') {
             // get customException type from exceptionFactory
             this.customException = ExceptionFactory.createException(customExceptionType.roomDataMissing);
-            return this.customException.printError();
+            createRoomErr = this.customException.printError();
+            return {roomName: undefined, createRoomErr};
         }
 
         // add current user as room author (use name for now)
@@ -46,11 +47,12 @@ export class RoomsService {
         } catch ({message}) {
             if (message.split(' ')[0] === 'E11000') {
                 this.customException = ExceptionFactory.createException(customExceptionType.roomNameTaken);
-                return this.customException.printError();
+                createRoomErr = this.customException.printError();
+                return {roomName: undefined, createRoomErr};
             }
         }
 
-        return newRoom.name;
+        return {roomName: newRoom.name, createRoomErr};
     }
 
     // return a specific room
