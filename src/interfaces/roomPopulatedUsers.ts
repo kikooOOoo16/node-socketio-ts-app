@@ -1,10 +1,11 @@
 import {Schema} from "mongoose";
 import {Message} from "./message";
+import {User} from "./user";
 
-export interface Room {
+export interface RoomPopulatedUsers {
     author: Schema.Types.ObjectId;
     name: string;
     description: string;
-    usersInRoom?: Schema.Types.ObjectId[];
+    usersInRoom?: User[];
     chatHistory?: Message[];
 }

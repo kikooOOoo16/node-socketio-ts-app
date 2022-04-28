@@ -58,7 +58,7 @@ userSchema.virtual('userRooms', {
 // don't use arrow function because 'this' will point to global
 userSchema.methods.generateAuthToken = async function () {
     const user = this;
-    const token = jwt.sign({_id: user._id.toString()}, process.env.JWT_SECRET, {expiresIn: '2h'});
+    const token = jwt.sign({_id: user._id.toString()}, process.env.JWT_SECRET, {expiresIn: '3h'});
 
     // save user token to DB
     user.tokens = user.tokens.concat({token});

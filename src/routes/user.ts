@@ -38,7 +38,7 @@ router // POST new user signup
             res.status(200).json({
                 user,
                 token,
-                expiresIn: 3600
+                expiresIn: 7200
             });
         } catch ({message}) {
             res.status(400).json({

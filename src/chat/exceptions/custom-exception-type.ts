@@ -11,5 +11,7 @@ export enum customExceptionType {
     roomDataMissing = 'ROOM_DATA_MISSING',
     roomNameTaken = 'ROOM_NAME_TAKEN',
     problemRetrievingData = 'PROBLEM_RETRIEVING_DATA',
-    problemAddingUserToRoom = 'PROBLEM_ADDING_USER_TO_ROOM'
+    problemAddingUserToRoom = 'PROBLEM_ADDING_USER_TO_ROOM',
+    problemSavingChatHistory = 'PROBLEM_SAVING_CHAT_HISTORY',
+    invalidMessageSent = 'INVALID_MESSAGE_SENT'
 }

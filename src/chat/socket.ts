@@ -6,6 +6,9 @@ import {MessageGeneratorService} from "./message-generator-service";
 import {UsersService} from "./users-service";
 import {Message} from "../interfaces/message";
 import {User} from "../interfaces/user";
+import {ExceptionFactory} from "./exceptions/exception-factory";
+import {customExceptionType} from "./exceptions/custom-exception-type";
+import {CustomException} from "./exceptions/custom-exception";
 
 export const socket = (server: http.Server) => {
     const io = new Server(server, {
@@ -55,7 +58,7 @@ export const socket = (server: http.Server) => {
             socket.join(roomName!);
 
             // helper method that sends greeting messages and returns callback to listener
-            await sendInitialMessages(currentUser!, socket, roomName!, callback);
+            await sendInitialMessages(io, socket, currentUser!, roomName!, callback);
         });
 
         // HANDLE INCOMING JOIN_ROOM SOCKET_IO REQUEST
@@ -82,7 +85,7 @@ export const socket = (server: http.Server) => {
             await sendUsersInRoomUpdate(io, roomName, callback);
 
             // helper method that sends greeting messages and returns callback to listener
-            await sendInitialMessages(currentUser!, socket, roomName, callback);
+            await sendInitialMessages(io, socket, currentUser!, roomName, callback);
         });
 
         // HANDLE INCOMING LEAVE_ROOM SOCKET_IO REQUEST
@@ -113,7 +116,7 @@ export const socket = (server: http.Server) => {
             socket.leave(roomName);
 
             // send socketIO emit to all users within the room
-            const userLeftMsg: Message = msgGeneratorSingleton.generateMessage('Admin', `${currentUser!.name} has left the chat.`);
+            const userLeftMsg: Message = msgGeneratorSingleton.generateMessage(undefined, `${currentUser!.name} has left the chat.`);
             console.log('Leave Room: Send user left room msg to all users in room.');
             io.to(roomName).emit('message', userLeftMsg);
         });
@@ -162,6 +165,12 @@ export const socket = (server: http.Server) => {
 
         // HANDLE SEND_MESSAGE SOCKET_IO REQUEST
         socket.on('sendMessage', async ({token, roomName, message}, callback) => {
+            // check if proper message was sent
+            if (!message || message === '') {
+                const customException: CustomException = ExceptionFactory.createException(customExceptionType.noSuchRoomExists);
+                return callback(customException.printError());
+            }
+
             // verify user token helper
             const {currentUser, err} = await usersServiceSingleton.verifyUserToken(token);
 
@@ -177,27 +186,48 @@ export const socket = (server: http.Server) => {
                 return callback(fetchRoomErr);
             }
 
+            // check if user in actual room where he is sending a message
+            const {isUserInRoomErr} = usersServiceSingleton.checkIfUserInRoom(currentUser!, room!);
+            // check if isUserInRoomErr exists
+            if (isUserInRoomErr !== '') {
+                return callback(isUserInRoomErr);
+            }
+
+            // generate proper Message obj
+            const chatMessage: Message = msgGeneratorSingleton.generateMessage(currentUser!, message);
+            // update room chat history
+            const {saveChatError} = await roomsServiceSingleton.saveChatHistory(room!, chatMessage);
+            // check if err
+            if (saveChatError !== '') {
+                return callback(saveChatError);
+            }
+
             // emit socketIO only to sockets that are in the room
-            io.to(room!.name).emit('message', msgGeneratorSingleton.generateMessage(currentUser!.name, message));
+            io.to(room!.name).emit('message', chatMessage);
             callback('Info: Message sent successfully!');
         });
     });
 }
 
-const sendInitialMessages = async (currentUser: User, socket: any, ioCallResponseRoomName: string, callback: any) => {
+const sendInitialMessages = async (io: Server, socket: any, currentUser: User, roomName: string, callback: any) => {
     // get msgGeneratorSingleton instance
     const msgGeneratorSingleton = MessageGeneratorService.getInstance();
 
     console.log('Create Room: Send greetings from app msg to current socket.');
-    const welcomeMsg: Message = msgGeneratorSingleton.generateMessage('Admin', 'Welcome to the Chat app! Please follow our guidelines.');
-    socket.emit('message', welcomeMsg);
+    const welcomeMsg: Message = msgGeneratorSingleton.generateMessage(undefined, 'Welcome to the Chat app! Please follow our guidelines.');
+
+    // socket.emit('message', welcomeMsg);
+    console.log('SendInitialMessage: socket.id = ');
+    console.log(socket.id);
+    io.to(socket.id).emit('message', welcomeMsg);
 
     // send socketIO emit to all users within the room
-    const newUserInRoomMsg: Message = msgGeneratorSingleton.generateMessage('Admin', `${currentUser.name} has joined the chat.`);
+    const newUserInRoomMsg: Message = msgGeneratorSingleton.generateMessage(undefined, `${currentUser.name} has joined the chat.`);
     console.log('Create Room: Send new user in room msg to all users in room.');
-    socket.broadcast.to(ioCallResponseRoomName).emit('message', newUserInRoomMsg);
+    socket.broadcast.to(roomName).emit('message', newUserInRoomMsg);
 
-    callback(ioCallResponseRoomName);
+    // return callback with roomName
+    callback(roomName);
 }
 
 const sendUsersInRoomUpdate = async (io: Server, roomName: string, callback: any) => {

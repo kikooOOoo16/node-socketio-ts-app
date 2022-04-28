@@ -5,6 +5,7 @@ import {Room as RoomModel} from "../db/models/room";
 import {ExceptionFactory} from "./exceptions/exception-factory";
 import {customExceptionType} from "./exceptions/custom-exception-type";
 import {CustomException} from "./exceptions/custom-exception";
+import {Message} from "../interfaces/message";
 
 export class RoomsService {
     private static instance: RoomsService;
@@ -237,5 +238,30 @@ export class RoomsService {
         }
         // return found room
         return {room, err};
+    }
+
+    saveChatHistory = async (room: Room, chatMessage: Message) => {
+        let saveChatError = '';
+        let newChatHistory = [];
+
+        // check if previous chat history exists
+        if (room.chatHistory && room.chatHistory.length > 0) {
+            // add new message to already existing chat history
+            newChatHistory = [...room.chatHistory, chatMessage];
+        } else {
+            newChatHistory = [chatMessage];
+        }
+
+        try {
+            await RoomModel.findOneAndUpdate({name: room.name}, {'chatHistory': newChatHistory});
+        } catch (err) {
+            console.log('SaveChatHistory: err=');
+            console.log(err);
+            this.customException = ExceptionFactory.createException(customExceptionType.problemSavingChatHistory);
+            saveChatError = this.customException.printError();
+        }
+
+        // return err
+        return {saveChatError};
     }
 }

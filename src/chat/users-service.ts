@@ -7,6 +7,7 @@ import {Room as RoomModel} from "../db/models/room";
 import {customExceptionType} from "./exceptions/custom-exception-type";
 import {CustomException} from "./exceptions/custom-exception";
 import {ExceptionFactory} from "./exceptions/exception-factory";
+import {RoomPopulatedUsers} from "../interfaces/roomPopulatedUsers";
 
 export class UsersService {
     private static instance: UsersService;
@@ -37,8 +38,7 @@ export class UsersService {
                 // remove user if he is inside a chat room
                 const payload = jwt.verify(token, process.env.JWT_SECRET, {ignoreExpiration: true}) as UserTokenPayload;
                 await this.removeUserFromAllRooms(payload._id);
-                console.log('UsersService: TypeOff payload.id')
-                console.log(typeof payload._id);
+
                 // return token expired error
                 this.customException = ExceptionFactory.createException(customExceptionType.expiredUserToken);
                 err = this.customException.printError();
@@ -85,5 +85,32 @@ export class UsersService {
                     }
                 }
             }
+    }
+
+    checkIfUserInRoom = (currentUser: User, room: RoomPopulatedUsers) => {
+        let userInRoom = false;
+        let isUserInRoomErr = '';
+        // check if there are any users in room
+        if (!room.usersInRoom || room.usersInRoom.length === 0) {
+            this.customException = ExceptionFactory.createException(customExceptionType.userNotInRoom);
+            isUserInRoomErr = this.customException.printError();
+            return {isUserInRoomErr};
+        }
+        for (const user of room.usersInRoom) {
+            if (String(currentUser._id) === String(user._id)) {
+                // if user in room set userInRoom to true and break loop
+                userInRoom = true;
+                break;
+            }
+        }
+
+        // check if user was found or not
+        if (!userInRoom) {
+            this.customException = ExceptionFactory.createException(customExceptionType.userNotInRoom);
+            isUserInRoomErr = this.customException.printError();
+        }
+
+        // return err string
+        return {isUserInRoomErr}
     }
 }

@@ -1,5 +1,35 @@
 import {model, Schema} from "mongoose";
 import {Room} from "../../interfaces/room";
+import {Message} from "../../interfaces/message";
+
+const messageSchema = new Schema<Message>({
+    author: {
+        id : {
+            type: Schema.Types.ObjectId,
+            required: true,
+            ref: 'User'
+        },
+        name: {
+            type: String,
+            required: true,
+            trim: true
+        }
+    },
+    text: {
+        type: String,
+        required: true,
+        trim: true
+    },
+    createdAtUnixTime: {
+        type: Number,
+        required: true,
+        trim: true
+    },
+    edited: {
+        type: Boolean,
+        required: true
+    }
+});
 
 const roomSchema = new Schema<Room>({
     name: {
@@ -23,7 +53,8 @@ const roomSchema = new Schema<Room>({
             type: Schema.Types.ObjectId,
             ref: 'User'
         }
-    ]
+    ],
+    chatHistory: [messageSchema]
 }, {
     timestamps: true
 });
