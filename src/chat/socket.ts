@@ -61,6 +61,90 @@ export const socket = (server: http.Server) => {
             await sendInitialMessages(io, socket, currentUser!, roomName!, callback);
         });
 
+        // HANDLE INCOMING EDIT ROOM SOCKET_IO REQUEST
+        socket.on('editRoom', async ({token, room}, callback) => {
+            // verify user token helper
+            const {currentUser, err} = await usersServiceSingleton.verifyUserToken(token);
+
+            // check if verifyUserToken returned an error
+            if (err !== '') {
+                return callback(err);
+            }
+
+            // check if current user has ownership of the room
+            const {err: checkRoomOwnershipErr, foundRoom} = await usersServiceSingleton.checkUserRoomOwnership(currentUser?._id, room._id);
+            // check if checkUserRoomOwnership passed if not return err
+            if (checkRoomOwnershipErr !== '') {
+                return callback(checkRoomOwnershipErr);
+            }
+
+            // check if the newly provided roomName is already in use
+            const {err: checkIfRoomNameExistsErr} = await roomsServiceSingleton.checkIfRoomNameExists(room.name, foundRoom!._id);
+            // if the provided room name is in use return an err
+            if (checkIfRoomNameExistsErr !== '') {
+                return callback(checkIfRoomNameExistsErr);
+            }
+
+            // if all is well edit room
+            const {err: editRoomErr} = await roomsServiceSingleton.editRoom(room, foundRoom!);
+            // check if edit room returned an error
+            if (editRoomErr) {
+                return callback(editRoomErr);
+            }
+
+            // send roomsListUpdate to all sockets
+            await sendRoomsListUpdate(io, callback);
+
+            // send updated rooms list created by user
+            const {allUserRooms, err: fetchUserRoomsErr} = await roomsServiceSingleton.fetchAllUserRooms(currentUser!);
+
+            // check if error occurred during fetchAllUserRooms
+            if (fetchUserRoomsErr !== '') {
+                return callback(fetchUserRoomsErr);
+            }
+
+            // emit fetchUserRooms socketIO event with allUserRooms found
+            socket.emit('fetchUserRooms', allUserRooms);
+        });
+
+        // HANDLE INCOMING DELETE_ROOM SOCKET_IO REQUESTS
+        socket.on('deleteRoom', async ({token, roomId}, callback) => {
+            // verify user token helper
+            const {currentUser, err} = await usersServiceSingleton.verifyUserToken(token);
+
+            // check if verifyUserToken returned an error
+            if (err !== '') {
+                return callback(err);
+            }
+
+            // check if current user has ownership of the room
+            const {err: checkRoomOwnershipErr, foundRoom} = await usersServiceSingleton.checkUserRoomOwnership(currentUser?._id, roomId);
+            // check if checkUserRoomOwnership passed if not return err
+            if (checkRoomOwnershipErr !== '') {
+                return callback(checkRoomOwnershipErr);
+            }
+
+            const {err: deleteRoomErr} = await roomsServiceSingleton.deleteRoom(foundRoom!._id);
+            // check if deleteRoom passed if not return err
+            if (deleteRoomErr !== '') {
+                return callback(deleteRoomErr);
+            }
+
+            // send roomsListUpdate to all sockets
+            await sendRoomsListUpdate(io, callback);
+
+            // send updated rooms list created by user
+            const {allUserRooms, err: fetchUserRoomsErr} = await roomsServiceSingleton.fetchAllUserRooms(currentUser!);
+
+            // check if error occurred during fetchAllUserRooms
+            if (fetchUserRoomsErr !== '') {
+                return callback(fetchUserRoomsErr);
+            }
+
+            // emit fetchUserRooms socketIO event with allUserRooms found
+            socket.emit('fetchUserRooms', allUserRooms);
+        });
+
         // HANDLE INCOMING JOIN_ROOM SOCKET_IO REQUEST
         socket.on('joinRoom', async ({token, roomName}, callback) => {
             // verify user token helper
@@ -72,10 +156,10 @@ export const socket = (server: http.Server) => {
             }
 
             // update rooms state
-            const joinRoomErr = await roomsServiceSingleton.joinRoom(currentUser!, roomName);
+            const {err: joinRoomErr} = await roomsServiceSingleton.joinRoom(currentUser!, roomName);
 
             // if err return callback with err message
-            if (joinRoomErr) {
+            if (joinRoomErr !== '') {
                 callback(joinRoomErr);
             }
             // if no err socket joins the room
@@ -99,7 +183,7 @@ export const socket = (server: http.Server) => {
             }
 
             // update roomsState by removing the user
-            const leaveRoomErr = await roomsServiceSingleton.leaveRoom(currentUser!, roomName);
+            const {err: leaveRoomErr} = await roomsServiceSingleton.leaveRoom(currentUser!, roomName);
 
             // if err return callback with err message
             if (leaveRoomErr) {
@@ -157,10 +241,26 @@ export const socket = (server: http.Server) => {
                 return callback(fetchAllRoomsError);
             }
             // emit fetchAllRooms SocketIO request by sending all created rooms
-            console.log('FetchAllRooms');
-            console.log(allRooms);
-
             socket.emit('fetchAllRooms', allRooms);
+        });
+
+        // HANDLE INCOMING FETCH_USER_ROOMS SOCKET_IO REQUEST
+        socket.on('fetchUserRooms', async ({token}, callback) => {
+            // verify user token helper
+            const {currentUser, err: verifyTokenErr} = await usersServiceSingleton.verifyUserToken(token);
+
+            // check if verifyUserToken returned an error
+            if (verifyTokenErr !== '') {
+                return callback(verifyTokenErr);
+            }
+            // fetch all rooms created by specific user
+            const {allUserRooms, err: fetchUserRoomsErr} = await roomsServiceSingleton.fetchAllUserRooms(currentUser!);
+
+            if (fetchUserRoomsErr !== '') {
+                return callback(fetchUserRoomsErr);
+            }
+            // emit fetchUserRooms socketIO event with allUserRooms found
+            socket.emit('fetchUserRooms', allUserRooms);
         });
 
         // HANDLE SEND_MESSAGE SOCKET_IO REQUEST
@@ -216,14 +316,11 @@ const sendInitialMessages = async (io: Server, socket: any, currentUser: User, r
     console.log('Create Room: Send greetings from app msg to current socket.');
     const welcomeMsg: Message = msgGeneratorSingleton.generateMessage(undefined, 'Welcome to the Chat app! Please follow our guidelines.');
 
-    // socket.emit('message', welcomeMsg);
-    console.log('SendInitialMessage: socket.id = ');
-    console.log(socket.id);
+    // send message to specific user
     io.to(socket.id).emit('message', welcomeMsg);
 
     // send socketIO emit to all users within the room
     const newUserInRoomMsg: Message = msgGeneratorSingleton.generateMessage(undefined, `${currentUser.name} has joined the chat.`);
-    console.log('Create Room: Send new user in room msg to all users in room.');
     socket.broadcast.to(roomName).emit('message', newUserInRoomMsg);
 
     // return callback with roomName
@@ -244,7 +341,6 @@ const sendUsersInRoomUpdate = async (io: Server, roomName: string, callback: any
 const sendRoomsListUpdate = async (io: Server, callback: any) => {
     // fetch all rooms
     const {allRooms, err} = await RoomsService.getInstance().fetchAllRooms();
-
     // check for errors
     if (err !== '') {
         return callback(err);

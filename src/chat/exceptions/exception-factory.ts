@@ -14,6 +14,8 @@ import {ProblemRetrievingData} from "./problem-retrieving-data";
 import {ProblemAddingUserToRoom} from "./problem-adding-user-to-room";
 import {ProblemSavingChatHistory} from "./problem-saving-chat-history";
 import {InvalidMessageSent} from "./invalid-message-sent";
+import {ProblemUpdatingRoom} from "./problem-updating-room";
+import {ProblemDeletingRoom} from "./problem-deleting-room";
 
 export class ExceptionFactory {
     static createException = (exceptionType: customExceptionType)  => {
@@ -48,6 +50,10 @@ export class ExceptionFactory {
                 return new ProblemSavingChatHistory();
             case customExceptionType.invalidMessageSent:
                 return new InvalidMessageSent();
+            case customExceptionType.problemUpdatingRoom:
+                return new ProblemUpdatingRoom();
+            case customExceptionType.problemDeletingRoom:
+                return new ProblemDeletingRoom();
         }
     }
 }

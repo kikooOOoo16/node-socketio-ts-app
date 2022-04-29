@@ -1,5 +1,6 @@
 import * as jwt from "jsonwebtoken";
 import {UserTokenPayload} from "../interfaces/userTokenPayload";
+import {RoomPopulatedUsers} from "../interfaces/roomPopulatedUsers";
 import {User} from "../interfaces/user";
 import {Room} from "../interfaces/room";
 import {User as UserModel} from "../db/models/user";
@@ -7,7 +8,7 @@ import {Room as RoomModel} from "../db/models/room";
 import {customExceptionType} from "./exceptions/custom-exception-type";
 import {CustomException} from "./exceptions/custom-exception";
 import {ExceptionFactory} from "./exceptions/exception-factory";
-import {RoomPopulatedUsers} from "../interfaces/roomPopulatedUsers";
+import {Schema} from "mongoose";
 
 export class UsersService {
     private static instance: UsersService;
@@ -38,6 +39,9 @@ export class UsersService {
                 // remove user if he is inside a chat room
                 const payload = jwt.verify(token, process.env.JWT_SECRET, {ignoreExpiration: true}) as UserTokenPayload;
                 await this.removeUserFromAllRooms(payload._id);
+
+                // remove token from user obj in DB
+                await this.removeUserExpiredToken(payload._id, token);
 
                 // return token expired error
                 this.customException = ExceptionFactory.createException(customExceptionType.expiredUserToken);
@@ -112,5 +116,57 @@ export class UsersService {
 
         // return err string
         return {isUserInRoomErr}
+    }
+
+    // this should never fail therefor no returned error needed
+    private removeUserExpiredToken = async (_id: string, token: string) => {
+
+        const currentUser: User | null = await UserModel.findById(_id);
+
+        if (!currentUser) {
+            console.log(`removeUserExpiredToken: no user was found for the id ${_id}`);
+            return;
+        }
+
+        // filter user tokens that aren't equal to expired token
+        currentUser.tokens = currentUser.tokens?.filter((tokenObj: any) => tokenObj.token !== token);
+
+        // save user data without current req token
+        await currentUser!.save();
+    }
+
+    checkUserRoomOwnership = async (_id: Schema.Types.ObjectId | undefined, roomId: string): Promise<{ err: string, foundRoom: Room | undefined }> => {
+        let err = '';
+        let foundRoom: Room | null;
+        // const {room: foundRoom, fetchRoomErr} = await RoomsService.getInstance().fetchRoom(roomName);
+
+        try {
+            foundRoom = await RoomModel.findById(roomId);
+        } catch (e) {
+            err = e.message;
+            return {err, foundRoom: undefined};
+        }
+
+        if (!foundRoom) {
+            this.customException = ExceptionFactory.createException(customExceptionType.invalidRoomQuery);
+            err = this.customException.printError();
+            return {err, foundRoom: undefined}
+        }
+
+        // check if request user is the same as room author
+        if (String(foundRoom?.author) !== String(_id)) {
+            console.log('checkUserOwnership: ');
+            console.log(String(foundRoom?.author) !== String(_id));
+            console.log(`checkUserOwnership: String(foundRoom?.author)= ${String(foundRoom?.author)}`);
+            console.log(`checkUserOwnership: String(_id)= ${String(_id)}`);
+
+            // if is not authenticated return unauthorizedAction err
+            this.customException = ExceptionFactory.createException(customExceptionType.unauthorizedAction);
+            err = this.customException.printError();
+            return {err, foundRoom: undefined}
+        }
+
+        // if all is well return found room and initial err value of ''
+        return {err, foundRoom}
     }
 }
