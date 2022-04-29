@@ -296,7 +296,7 @@ export const socket = (server: http.Server) => {
             // generate proper Message obj
             const chatMessage: Message = msgGeneratorSingleton.generateMessage(currentUser!, message);
             // update room chat history
-            const {saveChatError} = await roomsServiceSingleton.saveChatHistory(room!, chatMessage);
+            const {err: saveChatError} = await roomsServiceSingleton.saveChatHistory(room!, chatMessage);
             // check if err
             if (saveChatError !== '') {
                 return callback(saveChatError);
