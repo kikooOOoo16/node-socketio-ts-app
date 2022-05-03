@@ -1,5 +1,6 @@
 import {Server} from 'socket.io';
 import * as http from "http";
+import jwt from 'jsonwebtoken';
 
 import {RoomsService} from './rooms-service';
 import {MessageGeneratorService} from "./message-generator-service";
@@ -9,6 +10,7 @@ import {User} from "../interfaces/user";
 import {ExceptionFactory} from "./exceptions/exception-factory";
 import {customExceptionType} from "./exceptions/custom-exception-type";
 import {CustomException} from "./exceptions/custom-exception";
+import {UserTokenPayload} from "../interfaces/userTokenPayload";
 
 export const socket = (server: http.Server) => {
     const io = new Server(server, {
@@ -24,9 +26,33 @@ export const socket = (server: http.Server) => {
     // get MessageGeneratorService singleton instance
     const msgGeneratorSingleton = MessageGeneratorService.getInstance();
 
+    // setup socketIO auth middleware
+    io.use(((socket, next) => {
+        // check if socket auth payload is present
+        if (socket.handshake.auth && socket.handshake.auth.token) {
+            let userId: UserTokenPayload;
+            try {
+                // verify token validity
+                userId = (jwt.verify(<string>socket.handshake.auth.token, process.env.JWT_SECRET)) as UserTokenPayload;
+            } catch (err) {
+                console.log(err.message);
+                next(new Error('Authentication error'));
+            }
+            // if no err set userId as session variable on data property
+            socket.data.userId = userId!._id;
+            // continue chain
+            next();
+        }
+    }));
+
+
     // listen to new connection and get socket instance of the connected party
     io.on('connection', socket => {
         console.log('\nNew Websocket connection.');
+        console.log('Socket Handshake auth token :');
+        console.log(socket.handshake.auth);
+
+        console.log(socket.data);
 
         // HANDLE INCOMING CREATE ROOM SOCKET_IO REQUEST
         socket.on('createRoom', async ({token, newRoom}, callback) => {
@@ -305,6 +331,11 @@ export const socket = (server: http.Server) => {
             // emit socketIO only to sockets that are in the room
             io.to(room!.name).emit('message', chatMessage);
             callback('Info: Message sent successfully!');
+        });
+
+        socket.on('disconnect', reason => {
+            console.log('Socket websocket closed. Reason = ');
+            console.log(reason);
         });
     });
 }
