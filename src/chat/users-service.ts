@@ -9,6 +9,7 @@ import {customExceptionType} from "./exceptions/custom-exception-type";
 import {CustomException} from "./exceptions/custom-exception";
 import {ExceptionFactory} from "./exceptions/exception-factory";
 import {Schema} from "mongoose";
+import Logger from "../logger/logger";
 
 export class UsersService {
     private static instance: UsersService;
@@ -32,12 +33,13 @@ export class UsersService {
             decodedToken = (jwt.verify(token, process.env.JWT_SECRET)) as UserTokenPayload;
         } catch (err) {
             // catch token error and return err message
-            console.log('VerifyToken: ');
-            console.log(err.name);
+            Logger.warn(`UsersService: verifyUserToken: Token verify failed with err: ${err.message}.`);
+
             // check if token expired
             if (err.name === 'TokenExpiredError') {
                 // remove user if he is inside a chat room
                 const payload = jwt.verify(token, process.env.JWT_SECRET, {ignoreExpiration: true}) as UserTokenPayload;
+                Logger.debug('UsersService: verifyUserToken: Token expired, removeUserFromAllRooms triggered.');
                 await this.removeUserFromAllRooms(payload._id);
 
                 // remove token from user obj in DB
@@ -124,7 +126,7 @@ export class UsersService {
         const currentUser: User | null = await UserModel.findById(_id);
 
         if (!currentUser) {
-            console.log(`removeUserExpiredToken: no user was found for the id ${_id}`);
+            Logger.debug(`UsersService: removeUserExpiredToken: no user was found for the id ${_id}`);
             return;
         }
 
@@ -138,7 +140,6 @@ export class UsersService {
     checkUserRoomOwnership = async (_id: Schema.Types.ObjectId | undefined, roomId: string): Promise<{ err: string, foundRoom: Room | undefined }> => {
         let err = '';
         let foundRoom: Room | null;
-        // const {room: foundRoom, fetchRoomErr} = await RoomsService.getInstance().fetchRoom(roomName);
 
         try {
             foundRoom = await RoomModel.findById(roomId);
@@ -155,11 +156,6 @@ export class UsersService {
 
         // check if request user is the same as room author
         if (String(foundRoom?.author) !== String(_id)) {
-            console.log('checkUserOwnership: ');
-            console.log(String(foundRoom?.author) !== String(_id));
-            console.log(`checkUserOwnership: String(foundRoom?.author)= ${String(foundRoom?.author)}`);
-            console.log(`checkUserOwnership: String(_id)= ${String(_id)}`);
-
             // if is not authenticated return unauthorizedAction err
             this.customException = ExceptionFactory.createException(customExceptionType.unauthorizedAction);
             err = this.customException.printError();

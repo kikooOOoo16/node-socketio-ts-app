@@ -7,6 +7,7 @@ import {CustomException} from "./exceptions/custom-exception";
 import {Message} from "../interfaces/message";
 import {RoomPopulatedUsers} from "../interfaces/roomPopulatedUsers";
 import {Schema} from "mongoose";
+import Logger from "../logger/logger";
 
 export class RoomsService {
     private static instance: RoomsService;
@@ -27,6 +28,7 @@ export class RoomsService {
         let createRoomErr = '';
         // check if all data provided for newRoom
         if (newRoom.name === '' || newRoom.description === '' || newRoom.description.length < 10) {
+            Logger.warn(`RoomsService: Create Room: Room query data missing for ${newRoom.name}.`);
             // get customException type from exceptionFactory
             this.customException = ExceptionFactory.createException(customExceptionType.roomDataMissing);
             createRoomErr = this.customException.printError();
@@ -45,15 +47,15 @@ export class RoomsService {
         try {
             // create new Room Mongoose model and save it to DB
             await new RoomModel({...newRoom}).save();
-            console.log('Create Room: New room saved to DB.');
+            Logger.debug('RoomsService: Create Room: New room saved to DB.');
         } catch ({message}) {
             if (message.split(' ')[0] === 'E11000') {
+                Logger.warn(`RoomsService: Create Room: Room name already taken exception triggered for name ${newRoom.name}.`);
                 this.customException = ExceptionFactory.createException(customExceptionType.roomNameTaken);
                 createRoomErr = this.customException.printError();
                 return {roomName: undefined, createRoomErr};
             }
         }
-
         return {roomName: newRoom.name, createRoomErr};
     }
 
@@ -67,6 +69,7 @@ export class RoomsService {
                 description: editedRoom.description
             });
         } catch (e) {
+            Logger.warn(`RoomsService: Edit Room: There was a problem updating the room ${foundRoom.name}.`);
             this.customException = ExceptionFactory.createException(customExceptionType.problemUpdatingRoom);
             err = this.customException.printError();
             return {err};
@@ -80,6 +83,7 @@ export class RoomsService {
         try {
             await RoomModel.findByIdAndDelete(roomId);
         } catch (e) {
+            Logger.warn(`RoomsService: Delete Room: There was a problem deleting the room ${roomId}.`);
             this.customException = ExceptionFactory.createException(customExceptionType.problemDeletingRoom);
             err = this.customException.printError();
             return {err};
@@ -94,13 +98,13 @@ export class RoomsService {
         // check if valid roomName
         if (!roomName || roomName === '') {
             // get customException type from exceptionFactory
+            Logger.warn(`RoomsService: Fetch Room: Invalid room query for room name ${roomName}.`);
             this.customException = ExceptionFactory.createException(customExceptionType.invalidRoomQuery);
             err = this.customException.printError();
             return {room: undefined, fetchRoomErr: err};
         }
 
-        console.log('Fetch Room: searching room by name');
-        console.log(roomName);
+        Logger.debug(`RoomsService: Fetch Room: Searching room by name ${roomName}.`);
 
         try {
             // Find room by roomName and only retrieve users id name and email
@@ -109,24 +113,23 @@ export class RoomsService {
                 select: '_id name email'
             });
         } catch ({message}) {
-            console.log(message);
+            Logger.warn(`RoomsService: Fetch Room: Problem retrieving room data with error message: ${message}.`);
             this.customException = ExceptionFactory.createException(customExceptionType.problemRetrievingData);
             err = this.customException.printError();
             return {room: undefined, fetchRoomErr: err};
         }
 
-        console.log('Fetch Room: found room');
-        console.log(foundRoom);
+        Logger.debug(`RoomsService: Fetch Room: found room ${foundRoom}.`);
 
         // check if room exists
         if (!foundRoom) {
+            Logger.warn(`RoomsService: Fetch Room: no room found for room name ${roomName}.`);
             // get customException type from exceptionFactory
             this.customException = ExceptionFactory.createException(customExceptionType.noSuchRoomExists);
             err = this.customException.printError();
             return {room: undefined, fetchRoomErr: err};
         }
-
-        console.log(`Fetch Room: Found room ${foundRoom.name}`);
+        Logger.debug(`RoomsService: Fetch Room: Found room ${foundRoom.name}.`);
 
         return {room: foundRoom, fetchRoomErr: err};
     }
@@ -139,7 +142,7 @@ export class RoomsService {
         try {
             allRooms = await RoomModel.find();
         } catch ({message}) {
-            console.log(message);
+            Logger.warn(`RoomsService: Fetch All Room: Problem retrieving all rooms with error: ${message}.`);
             this.customException = ExceptionFactory.createException(customExceptionType.problemRetrievingData);
             err = this.customException.printError();
             return {allRooms: undefined, err};
@@ -154,9 +157,10 @@ export class RoomsService {
 
         // try to fetch all the rooms from the DB
         try {
+            // retrieve only specific fields
             allUserRooms = await RoomModel.find({author: currentUser._id},).select('_id name description author createdAt');
         } catch ({message}) {
-            console.log(message);
+            Logger.warn(`RoomsService: Fetch All Room: Problem retrieving all user specific rooms with error: ${message}.`);
             this.customException = ExceptionFactory.createException(customExceptionType.problemRetrievingData);
             err = this.customException.printError();
             return {allUserRooms: undefined, err};
@@ -176,13 +180,13 @@ export class RoomsService {
             err = checkInputAndFormatErr;
             return {err};
         }
-        console.log(`JoinRoom: Found room ${room}`);
+
+        Logger.debug(`RoomsService: JoinRoom: Found room ${room}.`);
 
         // get currentUsersArray
         usersInRoom = room?.usersInRoom;
 
-        console.log('JoinRoom: currentUsers in room array');
-        console.log(usersInRoom);
+        Logger.debug(`RoomsService: JoinRoom: CurrentUsers in room array ${usersInRoom}.`);
 
         // check if user already in the room
         if (usersInRoom && usersInRoom.length > 0) {
@@ -190,6 +194,7 @@ export class RoomsService {
             const foundUser = usersInRoom.find((user: any) => String(user._id) === String(currentUser._id));
             // if user found in room return error
             if (foundUser) {
+                Logger.warn(`RoomsService: JoinRoom: Join room failed for User ${currentUser.name} and room ${roomName}, user is already in room.`);
                 // get customException type from exceptionFactory
                 this.customException = ExceptionFactory.createException(customExceptionType.userAlreadyInRoom);
                 err = this.customException.printError();
@@ -200,7 +205,7 @@ export class RoomsService {
         // if all check passed add user to room's users array
         // @ts-ignore actually want to add only id
         usersInRoom!.push(currentUser._id);
-        console.log(`JoinRoom: Added user ${currentUser.name} to room array`);
+        Logger.debug(`RoomsService: JoinRoom: Added user ${currentUser.name} to room array.`);
 
         // if all goes well update room in DB with new usersInRoom array
         const {err: updateUsersInRoomErr} = await this.updateUsersInRoom(room!.name, usersInRoom!);
@@ -226,8 +231,7 @@ export class RoomsService {
             return {err};
         }
 
-        console.log('Leave Room: Found room ');
-        console.log(room);
+        Logger.debug(`RoomsService: Leave Room: Found room  ${room}.`);
 
         // get currentUsersArray
         usersInRoom = room?.usersInRoom;
@@ -236,8 +240,7 @@ export class RoomsService {
         if (usersInRoom && usersInRoom.length > 0) {
             // compare by userId, id values must be of type string because ObjectID === fails (different references)
             const foundUser = usersInRoom.find((user: any) => String(user._id) === String(currentUser._id));
-            console.log('LeaveRoom: Found user:');
-            console.log(foundUser);
+            Logger.debug(`RoomsService: Leave Room: Found user  ${foundUser}.`);
             // if user found in room return error
             if (!foundUser) {
                 // get customException type from exceptionFactory
@@ -250,13 +253,13 @@ export class RoomsService {
         // remove user from current room, must convert ObjectID into string because === fails (different references);
         usersInRoom = usersInRoom!.filter((userId: any) => String(userId._id) !== String(currentUser._id));
 
-        console.log('LeaveRoom: updated usersInRoom array');
-        console.log(usersInRoom);
+        Logger.debug(`RoomsService: Leave Room: Updated usersInRoom array  ${usersInRoom}.`);
 
         // if all goes well update room in DB with new usersInRoom array
         const {err: updateUsersInRoomErr} = await this.updateUsersInRoom(room!.name, usersInRoom);
         // check if usersInRoom were updated
         if (updateUsersInRoomErr !== '') {
+            Logger.warn(`RoomsService: Leave Room: Failed to update users in room ${roomName} with error message: ${updateUsersInRoomErr}`);
             err = updateUsersInRoomErr;
             return {err};
         }
@@ -273,13 +276,13 @@ export class RoomsService {
         try {
             foundRoom = await RoomModel.findOne({name: name, _id: {$ne: roomToEditID}});
         } catch (e) {
+            Logger.warn(`RoomsService: checkIfRoomNameExists: Failed to retrieve room data for room name ${name} with error message: ${e.message}`);
             this.customException = ExceptionFactory.createException(customExceptionType.problemRetrievingData);
             err = this.customException.printError();
             return {err};
         }
 
-        console.log('CheckIfRoomNameExists: foundRoom = ');
-        console.log(foundRoom);
+        Logger.debug(`RoomsService: checkIfRoomNameExists: foundRoom =  ${foundRoom}`);
 
         // check if room was found
         if (foundRoom) {
@@ -306,8 +309,7 @@ export class RoomsService {
         try {
             await RoomModel.findOneAndUpdate({name: room.name}, {'chatHistory': newChatHistory});
         } catch (err) {
-            console.log('SaveChatHistory: err=');
-            console.log(err);
+            Logger.debug(`RoomsService: SaveChatHistory: Failed to find and update chat history for room name ${room.name}`);
             this.customException = ExceptionFactory.createException(customExceptionType.problemSavingChatHistory);
             saveChatError = this.customException.printError();
             return {err: saveChatError};
@@ -346,12 +348,12 @@ export class RoomsService {
     }
 
     // helper method that updates users in specified room
-    private updateUsersInRoom = async (roomName: string, usersInRoom: User[]): Promise<{err: string }> => {
+    private updateUsersInRoom = async (roomName: string, usersInRoom: User[]): Promise<{ err: string }> => {
         let err = '';
         try {
             await RoomModel.findOneAndUpdate({name: roomName}, {'usersInRoom': usersInRoom});
         } catch ({message}) {
-            console.log(message);
+            Logger.warn(`RoomsService: updateUsersInRoom: Failed to find and update users list for room with name ${roomName}. Fail message ${message}`);
             this.customException = ExceptionFactory.createException(customExceptionType.problemAddingUserToRoom);
             err = this.customException.printError();
             return {err};

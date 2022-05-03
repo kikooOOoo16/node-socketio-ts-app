@@ -11,6 +11,7 @@ import {ExceptionFactory} from "./exceptions/exception-factory";
 import {customExceptionType} from "./exceptions/custom-exception-type";
 import {CustomException} from "./exceptions/custom-exception";
 import {UserTokenPayload} from "../interfaces/userTokenPayload";
+import Logger from "../logger/logger";
 
 export const socket = (server: http.Server) => {
     const io = new Server(server, {
@@ -35,7 +36,7 @@ export const socket = (server: http.Server) => {
                 // verify token validity
                 userId = (jwt.verify(<string>socket.handshake.auth.token, process.env.JWT_SECRET)) as UserTokenPayload;
             } catch (err) {
-                console.log(err.message);
+                Logger.warn(`Socket: AuthMiddleware: Failed to validate user auth header with err message ${err.message}`);
                 next(new Error('Authentication error'));
             }
             // if no err set userId as session variable on data property
@@ -48,11 +49,7 @@ export const socket = (server: http.Server) => {
 
     // listen to new connection and get socket instance of the connected party
     io.on('connection', socket => {
-        console.log('\nNew Websocket connection.');
-        console.log('Socket Handshake auth token :');
-        console.log(socket.handshake.auth);
-
-        console.log(socket.data);
+        Logger.debug(`\nSocket: io.on connection: New Websocket connection.`);
 
         // HANDLE INCOMING CREATE ROOM SOCKET_IO REQUEST
         socket.on('createRoom', async ({token, newRoom}, callback) => {
@@ -78,7 +75,7 @@ export const socket = (server: http.Server) => {
             // send roomsListUpdate to all sockets
             await sendRoomsListUpdate(io, callback);
 
-            console.log(`Create Room: The socket ${socket.id} has joined the room ${roomName}`);
+            Logger.debug(`\nSocket: socket.on createRoom: The socket ${socket.id} has joined the room ${roomName}.`);
 
             // if no err current user joins chat group, response is the room name
             socket.join(roomName!);
@@ -216,9 +213,6 @@ export const socket = (server: http.Server) => {
                 return callback(leaveRoomErr);
             }
 
-            console.log('LeaveRoom: roomName = ');
-            console.log(roomName);
-
             // send roomUsersUpdate to all sockets in current room
             await sendUsersInRoomUpdate(io, roomName, callback);
 
@@ -227,7 +221,6 @@ export const socket = (server: http.Server) => {
 
             // send socketIO emit to all users within the room
             const userLeftMsg: Message = msgGeneratorSingleton.generateMessage(undefined, `${currentUser!.name} has left the chat.`);
-            console.log('Leave Room: Send user left room msg to all users in room.');
             io.to(roomName).emit('message', userLeftMsg);
         });
 
@@ -334,8 +327,7 @@ export const socket = (server: http.Server) => {
         });
 
         socket.on('disconnect', reason => {
-            console.log('Socket websocket closed. Reason = ');
-            console.log(reason);
+            Logger.debug(`Socket: socket.on disconnect: SocketIO connection closed for socket ${socket.id}. Reason: ${reason}.`);
         });
     });
 }
@@ -343,8 +335,7 @@ export const socket = (server: http.Server) => {
 const sendInitialMessages = async (io: Server, socket: any, currentUser: User, roomName: string, callback: any) => {
     // get msgGeneratorSingleton instance
     const msgGeneratorSingleton = MessageGeneratorService.getInstance();
-
-    console.log('Create Room: Send greetings from app msg to current socket.');
+    // Send greetings from app msg to current socket.
     const welcomeMsg: Message = msgGeneratorSingleton.generateMessage(undefined, 'Welcome to the Chat app! Please follow our guidelines.');
 
     // send message to specific user

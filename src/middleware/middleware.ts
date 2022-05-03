@@ -3,6 +3,9 @@ import {NextFunction, Request, Response} from 'express';
 import {User} from "../db/models/user";
 import {UserTokenPayload} from "../interfaces/userTokenPayload";
 import {UsersService} from "../chat/users-service";
+import {CustomException} from "../chat/exceptions/custom-exception";
+import {ExceptionFactory} from "../chat/exceptions/exception-factory";
+import {customExceptionType} from "../chat/exceptions/custom-exception-type";
 
 // check authentication middleware
 const auth = async (req: Request, res: Response, next: NextFunction) => {
@@ -25,13 +28,16 @@ const auth = async (req: Request, res: Response, next: NextFunction) => {
         // continue chain
         next();
     } catch (err) {
-        let message = 'Error: Unauthorized action!';
+        let customException: CustomException = ExceptionFactory.createException(customExceptionType.unauthorizedAction);
+        let message = customException.printError();
         // check if tokenExpiredError thrown and handle cleanup
         if (err.name === 'TokenExpiredError') {
-            message = 'Error: User token has expired.';
+            customException = ExceptionFactory.createException(customExceptionType.expiredUserToken);
+            message = customException.printError();
             // handle remove user from room and remove user's expired token
             await UsersService.getInstance().verifyUserToken(token!);
         }
+        // clear customException for GC
         res.status(401).json({
             message
         });

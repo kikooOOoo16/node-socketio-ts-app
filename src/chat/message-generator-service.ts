@@ -1,6 +1,5 @@
 import {Message} from "../interfaces/message";
 import {User} from "../interfaces/user";
-import mongoose from "mongoose";
 
 export class MessageGeneratorService {
     private static instance: MessageGeneratorService;

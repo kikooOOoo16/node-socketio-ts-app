@@ -1,6 +1,7 @@
 import {app} from './src/app';
 import * as http from "http";
 import {socket} from './src/chat/socket';
+import Logger from "./src/logger/logger";
 
 const normalizePort = (val: string | number) => {
     let port = parseInt( String(val), 10);
@@ -24,11 +25,11 @@ const onError = (error: { syscall: string; code: any; }) => {
     const bind = typeof addr === 'string' ? 'pipe' + addr : 'port' + port;
     switch (error.code) {
         case 'EACCES':
-            console.error(bind + ' requires elevated privileges');
+            Logger.error(`${bind} requires elevated privileges.`);
             process.exit(1);
             break;
         case 'EADDRINUSE':
-            console.error(bind + ' is already in use');
+            Logger.error(`${bind} is already in use.`);
             process.exit(1);
             break;
         default:
@@ -39,7 +40,7 @@ const onError = (error: { syscall: string; code: any; }) => {
 const onListening = () => {
     const addr = server.address();
     const bind = typeof addr === 'string' ? 'pipe ' + addr : 'port ' + port;
-    console.log(`\nServer is listening on ${bind}.`);
+    Logger.debug(`\nServer is listening on ${bind}.`);
 };
 
 const port = normalizePort(process.env.PORT || 3000);

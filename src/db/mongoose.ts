@@ -1,10 +1,11 @@
-import { connect } from 'mongoose';
+import {connect} from 'mongoose';
+import Logger from "../logger/logger";
 
 connect(process.env.MONGODB_URL)
     .then(
         () => {
-            console.log('Connected to MongoDB successfully.');
+            Logger.debug(`mongoose.ts: Connected to MongoDB successfully.`);
         }
     ).catch(err => {
-    console.log(`${err} : DB connection failed.`);
+    Logger.error(`mongoose.ts: DB connection failed with err message ${err.message}.`)
 });
