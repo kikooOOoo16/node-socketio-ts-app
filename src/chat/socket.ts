@@ -1,6 +1,8 @@
 import {Server} from 'socket.io';
 import * as http from "http";
 import jwt from 'jsonwebtoken';
+import Logger from "../logger/logger";
+import Filter from "bad-words";
 
 import {RoomsService} from './rooms-service';
 import {MessageGeneratorService} from "./message-generator-service";
@@ -11,7 +13,6 @@ import {ExceptionFactory} from "./exceptions/exception-factory";
 import {customExceptionType} from "./exceptions/custom-exception-type";
 import {CustomException} from "./exceptions/custom-exception";
 import {UserTokenPayload} from "../interfaces/userTokenPayload";
-import Logger from "../logger/logger";
 
 export const socket = (server: http.Server) => {
     const io = new Server(server, {
@@ -284,10 +285,20 @@ export const socket = (server: http.Server) => {
 
         // HANDLE SEND_MESSAGE SOCKET_IO REQUEST
         socket.on('sendMessage', async ({token, roomName, message}, callback) => {
+            let customException: CustomException;
             // check if proper message was sent
             if (!message || message === '') {
-                const customException: CustomException = ExceptionFactory.createException(customExceptionType.noSuchRoomExists);
+                customException = ExceptionFactory.createException(customExceptionType.invalidMessageSent);
                 return callback(customException.printError());
+            }
+
+            // catch profane language in message
+            const badWordsFilter = new Filter();
+
+            if (badWordsFilter.isProfane(message)) {
+                customException = ExceptionFactory.createException(customExceptionType.profaneLanguageNotAllowed);
+                const badWordsErr = customException.printError();
+                return callback(badWordsErr);
             }
 
             // verify user token helper

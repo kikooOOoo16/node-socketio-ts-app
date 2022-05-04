@@ -16,6 +16,7 @@ import {ProblemSavingChatHistory} from "./problem-saving-chat-history";
 import {InvalidMessageSent} from "./invalid-message-sent";
 import {ProblemUpdatingRoom} from "./problem-updating-room";
 import {ProblemDeletingRoom} from "./problem-deleting-room";
+import {ProfaneLanguageNotAllowed} from "./profane-language-not-allowed";
 
 export class ExceptionFactory {
     static createException = (exceptionType: customExceptionType)  => {
@@ -54,6 +55,8 @@ export class ExceptionFactory {
                 return new ProblemUpdatingRoom();
             case customExceptionType.problemDeletingRoom:
                 return new ProblemDeletingRoom();
+            case customExceptionType.profaneLanguageNotAllowed:
+                return new ProfaneLanguageNotAllowed();
         }
     }
 }

@@ -16,4 +16,5 @@ export enum customExceptionType {
     invalidMessageSent = 'INVALID_MESSAGE_SENT',
     problemUpdatingRoom = 'PROBLEM_UPDATING_ROOM',
     problemDeletingRoom = 'PROBLEM_DELETING_ROOM',
+    profaneLanguageNotAllowed = 'PROFANE_LANGUAGE_NOT_ALLOWED',
 }

@@ -8,6 +8,7 @@ import {Message} from "../interfaces/message";
 import {RoomPopulatedUsers} from "../interfaces/roomPopulatedUsers";
 import {Schema} from "mongoose";
 import Logger from "../logger/logger";
+import Filter from "bad-words";
 
 export class RoomsService {
     private static instance: RoomsService;
@@ -28,11 +29,20 @@ export class RoomsService {
         let createRoomErr = '';
         // check if all data provided for newRoom
         if (newRoom.name === '' || newRoom.description === '' || newRoom.description.length < 10) {
-            Logger.warn(`RoomsService: Create Room: Room query data missing for ${newRoom.name}.`);
+            Logger.warn(`RoomsService: Create Room: Room query data missing for room with name: ${newRoom.name}.`);
             // get customException type from exceptionFactory
             this.customException = ExceptionFactory.createException(customExceptionType.roomDataMissing);
             createRoomErr = this.customException.printError();
             return {roomName: undefined, createRoomErr};
+        }
+
+        // catch profane language in new room query
+        const badWordsFilter = new Filter();
+
+        if (badWordsFilter.isProfane(newRoom.name) || badWordsFilter.isProfane(newRoom.description)) {
+            this.customException = ExceptionFactory.createException(customExceptionType.profaneLanguageNotAllowed);
+            const badWordsErr = this.customException.printError();
+            return {roomName: undefined, createRoomErr: badWordsErr};
         }
 
         // add current user as room author (use name for now)
@@ -62,6 +72,16 @@ export class RoomsService {
     // edit existing room
     editRoom = async (editedRoom: Room, foundRoom: Room): Promise<{ err: string }> => {
         let err = '';
+
+        // catch profane language in edit room query
+        const badWordsFilter = new Filter();
+
+        if (badWordsFilter.isProfane(editedRoom.name) || badWordsFilter.isProfane(editedRoom.description)) {
+            this.customException = ExceptionFactory.createException(customExceptionType.profaneLanguageNotAllowed);
+            err = this.customException.printError();
+            return {err};
+        }
+
         // try to update the room in the DB
         try {
             await RoomModel.findByIdAndUpdate(foundRoom._id, {
