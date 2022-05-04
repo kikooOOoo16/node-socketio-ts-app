@@ -49,7 +49,7 @@ export const socket = (server: http.Server) => {
 
     // listen to new connection and get socket instance of the connected party
     io.on('connection', socket => {
-        Logger.debug(`\nSocket: io.on connection: New Websocket connection.`);
+        Logger.debug(`Socket: io.on connection: New Websocket connection.`);
 
         // HANDLE INCOMING CREATE ROOM SOCKET_IO REQUEST
         socket.on('createRoom', async ({token, newRoom}, callback) => {
@@ -75,7 +75,7 @@ export const socket = (server: http.Server) => {
             // send roomsListUpdate to all sockets
             await sendRoomsListUpdate(io, callback);
 
-            Logger.debug(`\nSocket: socket.on createRoom: The socket ${socket.id} has joined the room ${roomName}.`);
+            Logger.debug(`Socket: socket.on createRoom: The socket ${socket.id} has joined the room ${roomName}.`);
 
             // if no err current user joins chat group, response is the room name
             socket.join(roomName!);
