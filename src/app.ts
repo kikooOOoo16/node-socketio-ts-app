@@ -1,5 +1,6 @@
 import express from 'express';
 import bodyParser from 'body-parser';
+import cookieParser from 'cookie-parser'
 import {userRoutes} from './routes/user';
 
 // just import and run the file
@@ -14,9 +15,13 @@ app.use(bodyParser.urlencoded({extended: false}));
 // parse incoming JSON
 app.use(express.json());
 
+// parse cookie data between server and client
+app.use(cookieParser())
+
 // Allow CORS communication
 app.use((req, res, next) => {
-    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Origin', 'http://localhost:4200');
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
     res.setHeader(
         'Access-Control-Allow-Headers',
         'Origin, X-Requested-With, Content-Type, Accept, Authorization'

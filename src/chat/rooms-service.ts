@@ -27,7 +27,7 @@ export class RoomsService {
     // Create new room
     createRoom = async (currentUser: User, newRoom: Room): Promise<{ roomName: string | undefined, createRoomErr: string }> => {
         let createRoomErr = '';
-        // check if all data provided for newRoom
+        // check if all data provided and is valid for newRoom
         if (newRoom.name === '' || newRoom.description === '' || newRoom.description.length < 10) {
             Logger.warn(`RoomsService: Create Room: Room query data missing for room with name: ${newRoom.name}.`);
             // get customException type from exceptionFactory
@@ -57,7 +57,7 @@ export class RoomsService {
         try {
             // create new Room Mongoose model and save it to DB
             await new RoomModel({...newRoom}).save();
-            Logger.debug('RoomsService: Create Room: New room saved to DB.');
+            Logger.debug(`RoomsService: Create Room: New room saved to DB. RoomName = ${newRoom.name}`);
         } catch ({message}) {
             if (message.split(' ')[0] === 'E11000') {
                 Logger.warn(`RoomsService: Create Room: Room name already taken exception triggered for name ${newRoom.name}.`);
@@ -108,6 +108,7 @@ export class RoomsService {
             err = this.customException.printError();
             return {err};
         }
+        Logger.debug(`RoomsService: Delete Room: Successfully deleted the room with id= ${roomId}.`);
         return {err};
     }
 
@@ -149,7 +150,6 @@ export class RoomsService {
             err = this.customException.printError();
             return {room: undefined, fetchRoomErr: err};
         }
-        Logger.debug(`RoomsService: Fetch Room: Found room ${foundRoom.name}.`);
 
         return {room: foundRoom, fetchRoomErr: err};
     }
@@ -162,11 +162,12 @@ export class RoomsService {
         try {
             allRooms = await RoomModel.find();
         } catch ({message}) {
-            Logger.warn(`RoomsService: Fetch All Room: Problem retrieving all rooms with error: ${message}.`);
+            Logger.warn(`RoomsService: fetchAllRooms(): Problem retrieving all rooms with error: ${message}.`);
             this.customException = ExceptionFactory.createException(customExceptionType.problemRetrievingData);
             err = this.customException.printError();
             return {allRooms: undefined, err};
         }
+        Logger.debug(`RoomsService: fetchAllRooms(): Successfully fetched all rooms from DB, returning rooms array.`);
         return {allRooms, err};
     }
 
@@ -185,6 +186,7 @@ export class RoomsService {
             err = this.customException.printError();
             return {allUserRooms: undefined, err};
         }
+        Logger.debug(`RoomsService: Fetch All Room: Retrieved all user rooms successfully, returning allUserRooms array.`);
         return {allUserRooms, err}
     }
 
@@ -192,21 +194,19 @@ export class RoomsService {
     joinRoom = async (currentUser: User, roomName: string): Promise<{ err: string }> => {
         let err = '';
         let usersInRoom: User[] | undefined;  // THIS IS THE WRONG TYPE DON'T FORGET TO FIX IT !!!!!
-        // helper method that formats input and checks initial values for wrong input
-        const {room, err: checkInputAndFormatErr} = await this.checkInputAndFormat(roomName);
+
+        Logger.debug(`RoomsService: Join Room: Called fetchRoom().`);
+        const {room, fetchRoomErr: checkInputAndFormatErr} = await this.fetchRoom(roomName);
 
         // check if proper room obj or error msg
         if (checkInputAndFormatErr !== '') {
             err = checkInputAndFormatErr;
             return {err};
         }
-
-        Logger.debug(`RoomsService: JoinRoom: Found room ${room}.`);
-
         // get currentUsersArray
         usersInRoom = room?.usersInRoom;
 
-        Logger.debug(`RoomsService: JoinRoom: CurrentUsers in room array ${usersInRoom}.`);
+        Logger.debug(`RoomsService: JoinRoom: CurrentUsers in room array: ${usersInRoom? usersInRoom : '0'}.`);
 
         // check if user already in the room
         if (usersInRoom && usersInRoom.length > 0) {
@@ -223,7 +223,7 @@ export class RoomsService {
         }
 
         // if all check passed add user to room's users array
-        // @ts-ignore actually want to add only id
+        // @ts-ignore actually want to add only id, this is related to wrong type comment remark above
         usersInRoom!.push(currentUser._id);
         Logger.debug(`RoomsService: JoinRoom: Added user ${currentUser.name} to room array.`);
 
@@ -242,16 +242,15 @@ export class RoomsService {
         let err = '';
         let usersInRoom: User[] | undefined;
 
-        // helper method that formats input and checks initial values for wrong input
-        const {room, err: checkInputAndFormatErr} = await this.checkInputAndFormat(roomName);
+        Logger.debug(`RoomsService: Leave Room: Called fetchRoom().`);
+        // fetch roomData for provided roomName
+        const {room, fetchRoomErr: checkInputAndFormatErr} = await this.fetchRoom(roomName);
 
         // check if proper room obj or error msg
         if (checkInputAndFormatErr !== '') {
             err = checkInputAndFormatErr;
             return {err};
         }
-
-        Logger.debug(`RoomsService: Leave Room: Found room  ${room}.`);
 
         // get currentUsersArray
         usersInRoom = room?.usersInRoom;
@@ -336,35 +335,6 @@ export class RoomsService {
         }
         // return err
         return {err: saveChatError};
-    }
-
-    // helper method that formats input and checks initial values for wrong input
-    private checkInputAndFormat = async (roomName: string): Promise<{ room: RoomPopulatedUsers | undefined; err: string }> => {
-        let err = '';
-
-        // validate the data
-        if (!roomName) {
-            // get customException type from exceptionFactory
-            this.customException = ExceptionFactory.createException(customExceptionType.missingQueryData);
-            err = this.customException.printError();
-        }
-
-        // find room by name
-        const {room, fetchRoomErr: errFetchRoom} = await this.fetchRoom(roomName);
-
-        // check if fetchRoom returned an error
-        if (errFetchRoom !== '') {
-            err = errFetchRoom;
-        }
-
-        // handle if room doesn't exist
-        if (!room) {
-            // get customException type from exceptionFactory
-            this.customException = ExceptionFactory.createException(customExceptionType.noSuchRoomExists);
-            err = this.customException.printError();
-        }
-        // return found room
-        return {room, err};
     }
 
     // helper method that updates users in specified room

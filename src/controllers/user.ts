@@ -12,11 +12,17 @@ const signUp = async (req: Request, res: Response, next: NextFunction) => {
 
         Logger.debug(`Controllers: signUp: New user created: ${user.name}.`);
 
-        res.status(201).json({
+        // res found user and http only cookie
+        res
+            .cookie('access_token', token, {
+                httpOnly: true,
+                maxAge: 10800000,
+                secure: process.env.NODE_ENV === 'production'
+            })
+            .status(201).json({
             message: 'New user created.',
             user,
-            token,
-            expiresIn: 3600
+            expiresIn: 10800
         });
     } catch ({message}) {
         if (message.split(' ')[0] === 'E11000') {
@@ -40,10 +46,15 @@ const signIn = async (req: Request, res: Response, next: NextFunction) => {
 
         Logger.debug(`Controllers: signIn: User signed in: ${user.name}.`);
 
-        // res found user and token
-        res.status(200).json({
+        // res found user and http only cookie
+        res
+            .cookie('access_token', token, {
+                httpOnly: true,
+                maxAge: 10800000,
+                secure: process.env.NODE_ENV === 'production'
+            })
+            .status(200).json({
             user,
-            token,
             expiresIn: 10800
         });
     } catch ({message}) {
@@ -64,13 +75,15 @@ const logout = async (req: Request, res: Response, next: NextFunction) => {
         // save user data without current req token
         await req.user!.save();
 
+        // clear user cookies
+        res.clearCookie('access_token')
+
         Logger.debug(`Controllers: logout: User logged out: ${req.user!.name}.`);
 
         res.status(200).json({
             message: 'User logged out.'
         });
     } catch (e) {
-
         Logger.warn(`Controllers: logout: Problem logging out user : ${req.user!.name} with err message ${e.message}.`);
 
         res.status(500).json({
@@ -100,7 +113,7 @@ const logoutAll = async (req: Request, res: Response, next: NextFunction) => {
     }
 }
 
-const userProfile = async(req: Request, res: Response, next: NextFunction) => {
+const userProfile = async (req: Request, res: Response, next: NextFunction) => {
     try {
         Logger.debug(`Controllers: userProfile: User profile retrieved for user: ${req.user!.name}.`);
 

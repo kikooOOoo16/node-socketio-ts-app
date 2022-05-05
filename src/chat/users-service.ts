@@ -25,7 +25,7 @@ export class UsersService {
         return UsersService.instance;
     }
 
-    verifyUserToken = async (token: string): Promise<{ currentUser: User | undefined, err: String }> => {
+    verifyUserTokenFetchUser = async (token: string): Promise<{ currentUser: User | undefined, err: String }> => {
         let err = '';
         let decodedToken;
         try {
@@ -39,9 +39,10 @@ export class UsersService {
             if (err.name === 'TokenExpiredError') {
                 // remove user if he is inside a chat room
                 const payload = jwt.verify(token, process.env.JWT_SECRET, {ignoreExpiration: true}) as UserTokenPayload;
-                Logger.debug('UsersService: verifyUserToken: Token expired, removeUserFromAllRooms triggered.');
+                Logger.debug('UsersService: verifyUserToken: Token expired, removeUserFromAllRooms() triggered.');
                 await this.removeUserFromAllRooms(payload._id);
 
+                Logger.debug('UsersService: verifyUserToken: Token expired, removeUserExpiredToken() triggered.');
                 // remove token from user obj in DB
                 await this.removeUserExpiredToken(payload._id, token);
 
@@ -50,7 +51,7 @@ export class UsersService {
                 err = this.customException.printError();
                 return {currentUser: undefined, err};
             }
-            // if token hasn't expired, send general unauthorized action error
+            // if token hasn't expired then no token provided, send general unauthorized action error
             this.customException = ExceptionFactory.createException(customExceptionType.unauthorizedAction);
             err = this.customException.printError();
             return {currentUser: undefined, err};
@@ -59,6 +60,7 @@ export class UsersService {
         const currentUser: User | null = await UserModel.findOne({_id: decodedToken._id, 'tokens.token': token});
         // check if currentUser was found
         if (!currentUser) {
+            Logger.warn(`Couldn't find user in db with provided token and userId= ${decodedToken._id}`);
             // get customException type from exceptionFactory and return unauthorizedAction error
             this.customException = ExceptionFactory.createException(customExceptionType.unauthorizedAction);
             err = this.customException.printError();
@@ -137,7 +139,7 @@ export class UsersService {
         await currentUser!.save();
     }
 
-    checkUserRoomOwnership = async (_id: Schema.Types.ObjectId | undefined, roomId: string): Promise<{ err: string, foundRoom: Room | undefined }> => {
+    checkUserRoomOwnershipFetchRoom = async (_id: Schema.Types.ObjectId | undefined, roomId: string): Promise<{ err: string, foundRoom: Room | undefined }> => {
         let err = '';
         let foundRoom: Room | null;
 
@@ -161,6 +163,8 @@ export class UsersService {
             err = this.customException.printError();
             return {err, foundRoom: undefined}
         }
+
+        Logger.debug(`users-service: checkUserRoomOwnershipFetchRoom: Check room ownership passed for room ${foundRoom.name}, returning room obj.`);
 
         // if all is well return found room and initial err value of ''
         return {err, foundRoom}

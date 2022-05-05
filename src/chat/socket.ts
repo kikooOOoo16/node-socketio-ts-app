@@ -28,22 +28,32 @@ export const socket = (server: http.Server) => {
     // get MessageGeneratorService singleton instance
     const msgGeneratorSingleton = MessageGeneratorService.getInstance();
 
-    // setup socketIO auth middleware
+    // setup socketIO auth middleware, THIS ONLY RUNS ONCE ON SOCKET_IO CONNECTION ESTABLISHMENT!!!!
     io.use(((socket, next) => {
         // check if socket auth payload is present
-        if (socket.handshake.auth && socket.handshake.auth.token) {
+        if (socket.handshake.headers.cookie) {
             let userId: UserTokenPayload;
+            // get token value from cookie, token is stored as access_token=token-value string
+            const token = socket.handshake.headers.cookie!.split('=')[1];
+
             try {
                 // verify token validity
-                userId = (jwt.verify(<string>socket.handshake.auth.token, process.env.JWT_SECRET)) as UserTokenPayload;
+                userId = (jwt.verify(token, process.env.JWT_SECRET)) as UserTokenPayload;
             } catch (err) {
                 Logger.warn(`Socket: AuthMiddleware: Failed to validate user auth header with err message ${err.message}`);
-                next(new Error('Authentication error'));
+                const customException: CustomException = ExceptionFactory.createException(customExceptionType.unauthorizedAction);
+                next(new Error(customException.printError()));
             }
-            // if no err set userId as session variable on data property
+            // if no err set userId and token as session variables on data property
             socket.data.userId = userId!._id;
+            socket.data.token = token;
             // continue chain
             next();
+        } else {
+            // no cookie present on socketIO connection request
+            Logger.warn(`Socket: io.use: Problem authenticating user, no cookie provided socket.handshake.headers.cookie = ${socket.handshake.headers.cookie}.`);
+            const customException: CustomException = ExceptionFactory.createException(customExceptionType.unauthorizedAction);
+            next(new Error(customException.printError()));
         }
     }));
 
@@ -53,9 +63,9 @@ export const socket = (server: http.Server) => {
         Logger.debug(`Socket: io.on connection: New Websocket connection.`);
 
         // HANDLE INCOMING CREATE ROOM SOCKET_IO REQUEST
-        socket.on('createRoom', async ({token, newRoom}, callback) => {
+        socket.on('createRoom', async ({newRoom}, callback) => {
             // verify user token helper
-            const {currentUser, err} = await usersServiceSingleton.verifyUserToken(token);
+            const {currentUser, err} = await usersServiceSingleton.verifyUserTokenFetchUser(socket.data.token);
 
             // check if verifyUserToken returned an error
             if (err !== '') {
@@ -76,19 +86,19 @@ export const socket = (server: http.Server) => {
             // send roomsListUpdate to all sockets
             await sendRoomsListUpdate(io, callback);
 
-            Logger.debug(`Socket: socket.on createRoom: The socket ${socket.id} has joined the room ${roomName}.`);
-
             // if no err current user joins chat group, response is the room name
             socket.join(roomName!);
+
+            Logger.debug(`Socket: socket.on createRoom: The socket ${socket.id} has joined the room ${roomName}.`);
 
             // helper method that sends greeting messages and returns callback to listener
             await sendInitialMessages(io, socket, currentUser!, roomName!, callback);
         });
 
         // HANDLE INCOMING EDIT ROOM SOCKET_IO REQUEST
-        socket.on('editRoom', async ({token, room}, callback) => {
+        socket.on('editRoom', async ({room}, callback) => {
             // verify user token helper
-            const {currentUser, err} = await usersServiceSingleton.verifyUserToken(token);
+            const {currentUser, err} = await usersServiceSingleton.verifyUserTokenFetchUser(socket.data.token);
 
             // check if verifyUserToken returned an error
             if (err !== '') {
@@ -96,7 +106,7 @@ export const socket = (server: http.Server) => {
             }
 
             // check if current user has ownership of the room
-            const {err: checkRoomOwnershipErr, foundRoom} = await usersServiceSingleton.checkUserRoomOwnership(currentUser?._id, room._id);
+            const {err: checkRoomOwnershipErr, foundRoom} = await usersServiceSingleton.checkUserRoomOwnershipFetchRoom(currentUser?._id, room._id);
             // check if checkUserRoomOwnership passed if not return err
             if (checkRoomOwnershipErr !== '') {
                 return callback(checkRoomOwnershipErr);
@@ -132,9 +142,9 @@ export const socket = (server: http.Server) => {
         });
 
         // HANDLE INCOMING DELETE_ROOM SOCKET_IO REQUESTS
-        socket.on('deleteRoom', async ({token, roomId}, callback) => {
+        socket.on('deleteRoom', async ({roomId}, callback) => {
             // verify user token helper
-            const {currentUser, err} = await usersServiceSingleton.verifyUserToken(token);
+            const {currentUser, err} = await usersServiceSingleton.verifyUserTokenFetchUser(socket.data.token);
 
             // check if verifyUserToken returned an error
             if (err !== '') {
@@ -142,7 +152,7 @@ export const socket = (server: http.Server) => {
             }
 
             // check if current user has ownership of the room
-            const {err: checkRoomOwnershipErr, foundRoom} = await usersServiceSingleton.checkUserRoomOwnership(currentUser?._id, roomId);
+            const {err: checkRoomOwnershipErr, foundRoom} = await usersServiceSingleton.checkUserRoomOwnershipFetchRoom(currentUser?._id, roomId);
             // check if checkUserRoomOwnership passed if not return err
             if (checkRoomOwnershipErr !== '') {
                 return callback(checkRoomOwnershipErr);
@@ -170,9 +180,9 @@ export const socket = (server: http.Server) => {
         });
 
         // HANDLE INCOMING JOIN_ROOM SOCKET_IO REQUEST
-        socket.on('joinRoom', async ({token, roomName}, callback) => {
+        socket.on('joinRoom', async ({roomName}, callback) => {
             // verify user token helper
-            const {currentUser, err} = await usersServiceSingleton.verifyUserToken(token);
+            const {currentUser, err} = await usersServiceSingleton.verifyUserTokenFetchUser(socket.data.token);
 
             // check if verifyUserToken returned an error
             if (err !== '') {
@@ -189,6 +199,8 @@ export const socket = (server: http.Server) => {
             // if no err socket joins the room
             socket.join(roomName);
 
+            Logger.debug(`Socket: socket.on joinRoom: The socket ${socket.id} has joined the room ${roomName}.`);
+
             // send roomUsersUpdate to all sockets in current room
             await sendUsersInRoomUpdate(io, roomName, callback);
 
@@ -197,9 +209,9 @@ export const socket = (server: http.Server) => {
         });
 
         // HANDLE INCOMING LEAVE_ROOM SOCKET_IO REQUEST
-        socket.on('leaveRoom', async ({token, roomName}, callback) => {
+        socket.on('leaveRoom', async ({roomName}, callback) => {
             // verify user token helper
-            const {currentUser, err} = await usersServiceSingleton.verifyUserToken(token);
+            const {currentUser, err} = await usersServiceSingleton.verifyUserTokenFetchUser(socket.data.token);
 
             // check if verifyUserToken returned an error
             if (err !== '') {
@@ -220,15 +232,18 @@ export const socket = (server: http.Server) => {
             // if no error user leaves socketIO group
             socket.leave(roomName);
 
+            Logger.debug(`Socket: socket.on leaveRoom: The socket ${socket.id} has left the room ${roomName}.`);
+
             // send socketIO emit to all users within the room
             const userLeftMsg: Message = msgGeneratorSingleton.generateMessage(undefined, `${currentUser!.name} has left the chat.`);
             io.to(roomName).emit('message', userLeftMsg);
         });
 
         // HANDLE INCOMING FETCH_ROOM SOCKET_IO REQUEST
-        socket.on('fetchRoom', async ({token, roomName}, callback) => {
+        socket.on('fetchRoom', async ({roomName}, callback) => {
+            Logger.debug(`socket.ts: socket.on fetchRoom triggered for room ${roomName}`);
             // verify user token helper
-            const {err} = await usersServiceSingleton.verifyUserToken(token);
+            const {err} = await usersServiceSingleton.verifyUserTokenFetchUser(socket.data.token);
 
             // check if verifyUserToken returned an error
             if (err !== '') {
@@ -246,9 +261,9 @@ export const socket = (server: http.Server) => {
         });
 
         // HANDLE INCOMING FETCH_ALL_ROOMS SOCKET_IO REQUEST
-        socket.on('fetchAllRooms', async ({token}, callback) => {
+        socket.on('fetchAllRooms', async (callback) => {
             // verify user token helper
-            const {err: verifyTokenErr} = await usersServiceSingleton.verifyUserToken(token);
+            const {err: verifyTokenErr} = await usersServiceSingleton.verifyUserTokenFetchUser(socket.data.token);
 
             // check if verifyUserToken returned an error
             if (verifyTokenErr !== '') {
@@ -265,9 +280,9 @@ export const socket = (server: http.Server) => {
         });
 
         // HANDLE INCOMING FETCH_USER_ROOMS SOCKET_IO REQUEST
-        socket.on('fetchUserRooms', async ({token}, callback) => {
+        socket.on('fetchUserRooms', async (callback) => {
             // verify user token helper
-            const {currentUser, err: verifyTokenErr} = await usersServiceSingleton.verifyUserToken(token);
+            const {currentUser, err: verifyTokenErr} = await usersServiceSingleton.verifyUserTokenFetchUser(socket.data.token);
 
             // check if verifyUserToken returned an error
             if (verifyTokenErr !== '') {
@@ -284,7 +299,7 @@ export const socket = (server: http.Server) => {
         });
 
         // HANDLE SEND_MESSAGE SOCKET_IO REQUEST
-        socket.on('sendMessage', async ({token, roomName, message}, callback) => {
+        socket.on('sendMessage', async ({roomName, message}, callback) => {
             let customException: CustomException;
             // check if proper message was sent
             if (!message || message === '') {
@@ -296,13 +311,14 @@ export const socket = (server: http.Server) => {
             const badWordsFilter = new Filter();
 
             if (badWordsFilter.isProfane(message)) {
+                Logger.debug(`Socket.ts: socket.on sendMessage: Profane language check triggered in room ${roomName}.`);
                 customException = ExceptionFactory.createException(customExceptionType.profaneLanguageNotAllowed);
                 const badWordsErr = customException.printError();
                 return callback(badWordsErr);
             }
 
             // verify user token helper
-            const {currentUser, err} = await usersServiceSingleton.verifyUserToken(token);
+            const {currentUser, err} = await usersServiceSingleton.verifyUserTokenFetchUser(socket.data.token);
 
             // check if verifyUserToken returned an error
             if (err !== '') {
@@ -337,8 +353,9 @@ export const socket = (server: http.Server) => {
             callback('Info: Message sent successfully!');
         });
 
+        // catch socketIO disconnect event
         socket.on('disconnect', reason => {
-            Logger.debug(`Socket: socket.on disconnect: SocketIO connection closed for socket ${socket.id}. Reason: ${reason}.`);
+            Logger.warn(`Socket: socket.on disconnect: SocketIO connection closed for socket ${socket.id}. Reason: ${reason}.`);
         });
     });
 }
@@ -367,6 +384,7 @@ const sendUsersInRoomUpdate = async (io: Server, roomName: string, callback: any
     if (fetchRoomErr !== '') {
         return callback(fetchRoomErr);
     }
+    Logger.debug(`Socket.ts: sendUsersInRoomUpdate: Sent update with room data for room ${roomName}`);
     // send socketIO roomUsersUpdate emit to all users within the room
     io.to(roomName).emit('roomUsersUpdate', room);
 }
@@ -378,6 +396,7 @@ const sendRoomsListUpdate = async (io: Server, callback: any) => {
     if (err !== '') {
         return callback(err);
     }
+    Logger.debug('Socket.ts: sendRoomsListUpdate: Sent rooms list update');
     // send socketIO roomsListUpdate emit to all users
     io.emit('roomsListUpdate', allRooms);
 }
