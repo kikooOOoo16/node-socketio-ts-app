@@ -25,36 +25,38 @@ export class UsersService {
         return UsersService.instance;
     }
 
-    verifyUserTokenFetchUser = async (token: string): Promise<{ currentUser: User | undefined, err: String }> => {
-        let err = '';
+    verifyUserTokenFetchUser = async (token: string): Promise<{ currentUser: User | undefined, err: string }> => {
+        let verifyUserErr: string = '';
         let decodedToken;
         try {
             // check user auth with token in request
             decodedToken = (jwt.verify(token, process.env.JWT_SECRET)) as UserTokenPayload;
         } catch (err) {
-            // catch token error and return err message
-            Logger.warn(`UsersService: verifyUserToken: Token verify failed with err: ${err.message}.`);
+            if (err instanceof Error) {
+                // catch token error and return err message
+                Logger.warn(`UsersService: verifyUserToken: Token verify failed with err: ${err.message}.`);
+                // check if token expired
+                if (err.name === 'TokenExpiredError') {
+                    // remove user if he is inside a chat room
+                    const payload = jwt.verify(token, process.env.JWT_SECRET, {ignoreExpiration: true}) as UserTokenPayload;
+                    Logger.debug('UsersService: verifyUserToken: Token expired, removeUserFromAllRooms() triggered.');
+                    await this.removeUserFromAllRooms(payload._id);
 
-            // check if token expired
-            if (err.name === 'TokenExpiredError') {
-                // remove user if he is inside a chat room
-                const payload = jwt.verify(token, process.env.JWT_SECRET, {ignoreExpiration: true}) as UserTokenPayload;
-                Logger.debug('UsersService: verifyUserToken: Token expired, removeUserFromAllRooms() triggered.');
-                await this.removeUserFromAllRooms(payload._id);
+                    Logger.debug('UsersService: verifyUserToken: Token expired, removeUserExpiredToken() triggered.');
+                    // remove token from user obj in DB
+                    await this.removeUserExpiredToken(payload._id, token);
 
-                Logger.debug('UsersService: verifyUserToken: Token expired, removeUserExpiredToken() triggered.');
-                // remove token from user obj in DB
-                await this.removeUserExpiredToken(payload._id, token);
-
-                // return token expired error
-                this.customException = ExceptionFactory.createException(customExceptionType.expiredUserToken);
-                err = this.customException.printError();
-                return {currentUser: undefined, err};
+                    // return token expired error
+                    this.customException = ExceptionFactory.createException(customExceptionType.expiredUserToken);
+                    verifyUserErr = this.customException.printError();
+                    return {currentUser: undefined, err: verifyUserErr};
+                }
             }
+
             // if token hasn't expired then no token provided, send general unauthorized action error
             this.customException = ExceptionFactory.createException(customExceptionType.unauthorizedAction);
-            err = this.customException.printError();
-            return {currentUser: undefined, err};
+            verifyUserErr = this.customException.printError();
+            return {currentUser: undefined, err: verifyUserErr};
         }
         // find user by using the _id from the token
         const currentUser: User | null = await UserModel.findOne({_id: decodedToken._id, 'tokens.token': token});
@@ -63,11 +65,11 @@ export class UsersService {
             Logger.warn(`Couldn't find user in db with provided token and userId= ${decodedToken._id}`);
             // get customException type from exceptionFactory and return unauthorizedAction error
             this.customException = ExceptionFactory.createException(customExceptionType.unauthorizedAction);
-            err = this.customException.printError();
-            return {currentUser: undefined, err};
+            verifyUserErr = this.customException.printError();
+            return {currentUser: undefined, err: verifyUserErr};
         }
         // if all is good return currentUser
-        return {currentUser, err};
+        return {currentUser, err: verifyUserErr};
     }
 
     removeUserFromAllRooms = async (userId: string) => {
@@ -141,13 +143,15 @@ export class UsersService {
 
     checkUserRoomOwnershipFetchRoom = async (_id: Schema.Types.ObjectId | undefined, roomId: string): Promise<{ err: string, foundRoom: Room | undefined }> => {
         let err = '';
-        let foundRoom: Room | null;
+        let foundRoom: Room | null = null;
 
         try {
             foundRoom = await RoomModel.findById(roomId);
         } catch (e) {
-            err = e.message;
-            return {err, foundRoom: undefined};
+            if (e instanceof Error) {
+                err = e.message;
+                return {err, foundRoom: undefined};
+            }
         }
 
         if (!foundRoom) {

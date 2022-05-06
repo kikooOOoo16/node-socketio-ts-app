@@ -7,5 +7,5 @@ connect(process.env.MONGODB_URL)
             Logger.debug(`mongoose.ts: Connected to MongoDB successfully.`);
         }
     ).catch(err => {
-    Logger.error(`mongoose.ts: DB connection failed with err message ${err.message}.`)
+    Logger.error(`mongoose.ts: DB connection failed with err message ${err.message}.`);
 });

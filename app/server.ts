@@ -4,7 +4,7 @@ import {socket} from './src/chat/socket';
 import Logger from "./src/logger/logger";
 
 const normalizePort = (val: string | number) => {
-    let port = parseInt( String(val), 10);
+    const port = parseInt( String(val), 10);
     if (isNaN(port)) {
         // named pipe
         return val;

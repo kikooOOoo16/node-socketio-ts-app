@@ -1,10 +1,10 @@
 import {NextFunction, Request, Response} from "express";
-import {User} from "../db/models/user";
+import {User as UserModel} from "../db/models/user";
 import {UserNameTaken} from "../chat/exceptions/user-name-taken";
 import Logger from "../logger/logger";
 
-const signUp = async (req: Request, res: Response, next: NextFunction) => {
-    const user = new User(req.body);
+const signUp = async (req: Request, res: Response) => {
+    const user = new UserModel(req.body);
     try {
         await user.save();
         // create user token
@@ -24,23 +24,27 @@ const signUp = async (req: Request, res: Response, next: NextFunction) => {
             user,
             expiresIn: 10800
         });
-    } catch ({message}) {
-        if (message.split(' ')[0] === 'E11000') {
-            message = new UserNameTaken().printError();
+    } catch (err) {
+        if (err instanceof Error) {
+            if (err.message.split(' ')[0] === 'E11000') {
+                err.message = new UserNameTaken().printError();
+            }
+
+            Logger.warn(`Controllers: signUp: Problem creating new user for: ${user.name}.`);
+
+            res.status(400).json({
+                message: err.message
+            });
+
         }
-
-        Logger.warn(`Controllers: signUp: Problem creating new user for: ${user.name}.`);
-
-        res.status(400).json({
-            message
-        });
     }
 }
 
-const signIn = async (req: Request, res: Response, next: NextFunction) => {
+const signIn = async (req: Request, res: Response) => {
     try {
         // find user by credentials
-        const user = await User.findByCredentials(req.body.email, req.body.password);
+        //@ts-ignore
+        const user = await UserModel.findByCredentials(req.body.email, req.body.password);
         // generate auth token for found user
         const token = await user.generateAuthToken();
 
@@ -67,7 +71,7 @@ const signIn = async (req: Request, res: Response, next: NextFunction) => {
     }
 }
 
-const logout = async (req: Request, res: Response, next: NextFunction) => {
+const logout = async (req: Request, res: Response) => {
     try {
         // filter user tokens that aren't equal to req token
         req.user!.tokens = req.user!.tokens!.filter((token: any) => token.token !== req.token);
@@ -84,7 +88,9 @@ const logout = async (req: Request, res: Response, next: NextFunction) => {
             message: 'User logged out.'
         });
     } catch (e) {
-        Logger.warn(`Controllers: logout: Problem logging out user : ${req.user!.name} with err message ${e.message}.`);
+        if (e instanceof Error) {
+            Logger.warn(`Controllers: logout: Problem logging out user : ${req.user!.name} with err message ${e.message}.`);
+        }
 
         res.status(500).json({
             message: 'Error: User logout failed!'
@@ -92,7 +98,7 @@ const logout = async (req: Request, res: Response, next: NextFunction) => {
     }
 }
 
-const logoutAll = async (req: Request, res: Response, next: NextFunction) => {
+const logoutAll = async (req: Request, res: Response) => {
     try {
         // empty user's tokens array
         req.user!.tokens = [];
@@ -105,7 +111,10 @@ const logoutAll = async (req: Request, res: Response, next: NextFunction) => {
         });
     } catch (e) {
 
-        Logger.warn(`Controllers: logoutAll: Problem logging out user from all sessions with err message: ${e.message}.`);
+        if (e instanceof Error) {
+            Logger.warn(`Controllers: logoutAll: Problem logging out user from all sessions with err message: ${e.message}.`);
+        }
+
 
         res.status(500).json({
             message: 'Error: User logout failed.'

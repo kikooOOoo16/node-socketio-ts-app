@@ -113,6 +113,7 @@ userSchema.pre('save', async function (next) {
 });
 
 // create mongoose model from user's schema
+//@ts-ignore
 const User = model<User, UserModel>('User', userSchema);
 
 export {User};

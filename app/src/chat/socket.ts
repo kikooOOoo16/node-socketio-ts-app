@@ -40,9 +40,11 @@ export const socket = (server: http.Server) => {
                 // verify token validity
                 userId = (jwt.verify(token, process.env.JWT_SECRET)) as UserTokenPayload;
             } catch (err) {
-                Logger.warn(`Socket: AuthMiddleware: Failed to validate user auth header with err message ${err.message}`);
-                const customException: CustomException = ExceptionFactory.createException(customExceptionType.unauthorizedAction);
-                next(new Error(customException.printError()));
+                if (err instanceof Error) {
+                    Logger.warn(`Socket: AuthMiddleware: Failed to validate user auth header with err message ${err.message}`);
+                    const customException: CustomException = ExceptionFactory.createException(customExceptionType.unauthorizedAction);
+                    next(new Error(customException.printError()));
+                }
             }
             // if no err set userId and token as session variables on data property
             socket.data.userId = userId!._id;

@@ -58,12 +58,14 @@ export class RoomsService {
             // create new Room Mongoose model and save it to DB
             await new RoomModel({...newRoom}).save();
             Logger.debug(`RoomsService: Create Room: New room saved to DB. RoomName = ${newRoom.name}`);
-        } catch ({message}) {
-            if (message.split(' ')[0] === 'E11000') {
-                Logger.warn(`RoomsService: Create Room: Room name already taken exception triggered for name ${newRoom.name}.`);
-                this.customException = ExceptionFactory.createException(customExceptionType.roomNameTaken);
-                createRoomErr = this.customException.printError();
-                return {roomName: undefined, createRoomErr};
+        } catch (err) {
+            if (err instanceof Error) {
+                if (err.message.split(' ')[0] === 'E11000') {
+                    Logger.warn(`RoomsService: Create Room: Room name already taken exception triggered for name ${newRoom.name}.`);
+                    this.customException = ExceptionFactory.createException(customExceptionType.roomNameTaken);
+                    createRoomErr = this.customException.printError();
+                    return {roomName: undefined, createRoomErr};
+                }
             }
         }
         return {roomName: newRoom.name, createRoomErr};
@@ -204,9 +206,9 @@ export class RoomsService {
             return {err};
         }
         // get currentUsersArray
-        usersInRoom = room?.usersInRoom;
+        usersInRoom = room!.usersInRoom;
 
-        Logger.debug(`RoomsService: JoinRoom: CurrentUsers in room array: ${usersInRoom? usersInRoom : '0'}.`);
+        Logger.debug(`RoomsService: JoinRoom: CurrentUsers in room array: ${usersInRoom ? usersInRoom : '0'}.`);
 
         // check if user already in the room
         if (usersInRoom && usersInRoom.length > 0) {
@@ -295,10 +297,13 @@ export class RoomsService {
         try {
             foundRoom = await RoomModel.findOne({name: name, _id: {$ne: roomToEditID}});
         } catch (e) {
-            Logger.warn(`RoomsService: checkIfRoomNameExists: Failed to retrieve room data for room name ${name} with error message: ${e.message}`);
-            this.customException = ExceptionFactory.createException(customExceptionType.problemRetrievingData);
-            err = this.customException.printError();
-            return {err};
+            // ts compiler error if no type assertion here
+            if (e instanceof Error) {
+                Logger.warn(`RoomsService: checkIfRoomNameExists: Failed to retrieve room data for room name ${name} with error message: ${e.message}`);
+                this.customException = ExceptionFactory.createException(customExceptionType.problemRetrievingData);
+                err = this.customException.printError();
+                return {err};
+            }
         }
 
         Logger.debug(`RoomsService: checkIfRoomNameExists: foundRoom =  ${foundRoom}`);

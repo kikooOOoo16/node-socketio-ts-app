@@ -10,6 +10,7 @@ import Logger from "../logger/logger";
 
 // check authentication middleware
 const auth = async (req: Request, res: Response, next: NextFunction) => {
+    let exceptionMsg: string = '';
     let token: string;
     if (req.cookies && req.cookies.access_token) {
         // retrieve cookie access_token
@@ -29,16 +30,18 @@ const auth = async (req: Request, res: Response, next: NextFunction) => {
             // continue chain
             next();
         } catch (err) {
-            Logger.warn('ExpressMiddleware: Unauthorized action caught.')
-            let customException: CustomException = ExceptionFactory.createException(customExceptionType.unauthorizedAction);
-            let exceptionMsg = customException.printError();
-            // check if tokenExpiredError thrown and handle cleanup
-            if (err.name === 'TokenExpiredError') {
-                Logger.warn('ExpressMiddleware: TokenExpiredErr caught, cleanup user state using token from cookie.')
-                customException = ExceptionFactory.createException(customExceptionType.expiredUserToken);
+            if (err instanceof Error) {
+                Logger.warn('ExpressMiddleware: Unauthorized action caught.')
+                let customException: CustomException = ExceptionFactory.createException(customExceptionType.unauthorizedAction);
                 exceptionMsg = customException.printError();
-                // handle remove user from room and remove user's expired token
-                await UsersService.getInstance().verifyUserTokenFetchUser(token!);
+                // check if tokenExpiredError thrown and handle cleanup
+                if (err.name === 'TokenExpiredError') {
+                    Logger.warn('ExpressMiddleware: TokenExpiredErr caught, cleanup user state using token from cookie.')
+                    customException = ExceptionFactory.createException(customExceptionType.expiredUserToken);
+                    exceptionMsg = customException.printError();
+                    // handle remove user from room and remove user's expired token
+                    await UsersService.getInstance().verifyUserTokenFetchUser(token!);
+                }
             }
             // return unauthorized response code
             res.status(401).json({
