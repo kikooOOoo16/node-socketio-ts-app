@@ -20,15 +20,10 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="e175c359-e26f-4692-b7a0-ee093b9498b3" name="Default Changelist" comment="">
-      <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/src/chat/message-generator-service.ts" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/chat/message-generator-service.ts" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/app/src/chat/rooms-service.ts" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/chat/rooms-service.ts" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/app/src/chat/socket.ts" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/chat/socket.ts" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/app/src/chat/users-service.ts" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/chat/users-service.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/src/controllers/user.ts" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/controllers/user.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/src/interfaces/message.ts" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/interfaces/message.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/src/middleware/middleware.ts" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/middleware/middleware.ts" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -67,7 +62,7 @@
       <workItem from="1651816224295" duration="25067000" />
       <workItem from="1651916974882" duration="675000" />
       <workItem from="1652077064027" duration="5623000" />
-      <workItem from="1652093381232" duration="19800000" />
+      <workItem from="1652093381232" duration="27836000" />
     </task>
     <servers />
   </component>
@@ -146,9 +141,9 @@
       <screen x="0" y="0" width="1920" height="1032" />
     </state>
     <state x="461" y="161" key="SettingsEditor/0.0.1920.1032@0.0.1920.1032" timestamp="1651761118888" />
-    <state x="667" y="251" width="585" height="530" key="find.popup" timestamp="1651817114493">
+    <state x="667" y="251" width="585" height="530" key="find.popup" timestamp="1652188381636">
       <screen x="0" y="0" width="1920" height="1032" />
     </state>
-    <state x="667" y="251" width="585" height="530" key="find.popup/0.0.1920.1032@0.0.1920.1032" timestamp="1651817114493" />
+    <state x="667" y="251" width="585" height="530" key="find.popup/0.0.1920.1032@0.0.1920.1032" timestamp="1652188381636" />
   </component>
 </project>

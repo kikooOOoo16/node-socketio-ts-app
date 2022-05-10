@@ -142,8 +142,6 @@ export class RoomsService {
             return {room: undefined, fetchRoomErr: err};
         }
 
-        Logger.debug(`RoomsService: Fetch Room: found room ${{id: foundRoom!._id, roomName: foundRoom!.name, roomDescription: foundRoom!.description}}.`);
-
         // check if room exists
         if (!foundRoom) {
             Logger.warn(`RoomsService: Fetch Room: no room found for room name ${roomName}.`);
@@ -152,6 +150,8 @@ export class RoomsService {
             err = this.customException.printError();
             return {room: undefined, fetchRoomErr: err};
         }
+
+        Logger.debug(`RoomsService: Fetch Room: found room ${foundRoom!.name}.`);
 
         return {room: foundRoom, fetchRoomErr: err};
     }
@@ -317,9 +317,11 @@ export class RoomsService {
         return {err};
     }
 
-    saveChatHistory = async (room: RoomPopulatedUsers, chatMessage: Message): Promise<{ err: string }> => {
+    // edit chat history of certainRoom with new message and returned newly saved message in room
+    saveChatHistory = async (room: RoomPopulatedUsers, chatMessage: Message): Promise<{ err: string, savedChatMessage: Message | undefined }> => {
         let saveChatError = '';
         let newChatHistory: Message[];
+        let newlySavedMessage: Message | undefined = undefined;
 
         // check if previous chat history exists
         if (room.chatHistory && room.chatHistory.length > 0) {
@@ -331,15 +333,23 @@ export class RoomsService {
 
         // try to update room's chat history
         try {
-            await RoomModel.findOneAndUpdate({name: room.name}, {'chatHistory': newChatHistory});
+            const updatedRoom: Room | null = await RoomModel.findOneAndUpdate({name: room.name}, {'chatHistory': newChatHistory}, {new: true});
+            if (updatedRoom && updatedRoom.chatHistory) {
+                newlySavedMessage = updatedRoom.chatHistory[updatedRoom.chatHistory.length - 1];
+            } else {
+                Logger.warn(`Failed to update room ${room.name} with a result of ${newlySavedMessage}`);
+                this.customException = ExceptionFactory.createException(customExceptionType.problemSavingChatHistory);
+                saveChatError = this.customException.printError();
+                return {err: saveChatError, savedChatMessage: undefined};
+            }
         } catch (err) {
             Logger.debug(`RoomsService: SaveChatHistory: Failed to find and update chat history for room name ${room.name}`);
             this.customException = ExceptionFactory.createException(customExceptionType.problemSavingChatHistory);
             saveChatError = this.customException.printError();
-            return {err: saveChatError};
+            return {err: saveChatError, savedChatMessage: undefined};
         }
         // return err
-        return {err: saveChatError};
+        return {err: saveChatError, savedChatMessage: newlySavedMessage};
     }
 
     // helper method that updates users in specified room

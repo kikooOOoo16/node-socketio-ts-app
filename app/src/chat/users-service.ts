@@ -186,7 +186,7 @@ export class UsersService {
             err = this.customException.printError();
             return {checkIfMessageBelongsToUserErr: err}
         }
-        Logger.debug(`users-service: checkIfMessageBelongsToUser: The user ${userId} is definitely the author of the message ${String(editedMessage.author)}`);
+        Logger.debug(`users-service: checkIfMessageBelongsToUser: The user ${userId} is definitely the author of the message ${String(editedMessage.text)}`);
 
         return {checkIfMessageBelongsToUserErr: err}
     }

@@ -13,6 +13,7 @@ import {ExceptionFactory} from "./exceptions/exception-factory";
 import {customExceptionType} from "./exceptions/custom-exception-type";
 import {CustomException} from "./exceptions/custom-exception";
 import {UserTokenPayload} from "../interfaces/userTokenPayload";
+import {RoomPopulatedUsers} from "../interfaces/roomPopulatedUsers";
 
 export const socket = (server: http.Server) => {
     const io = new Server(server, {
@@ -311,7 +312,7 @@ export const socket = (server: http.Server) => {
         socket.on('sendMessage', async ({roomName, message}, callback) => {
             let customException: CustomException;
             // check if proper message was sent
-            if (!message || message === '') {
+            if (!message || message.trim() === '') {
                 customException = ExceptionFactory.createException(customExceptionType.invalidMessageSent);
                 return callback(customException.printError());
             }
@@ -326,74 +327,44 @@ export const socket = (server: http.Server) => {
                 return callback(badWordsErr);
             }
 
-            // verify user token helper
-            const {currentUser, err} = await usersServiceSingleton.verifyUserTokenFetchUser(socket.data.token);
-
-            // check if verifyUserToken returned an error
+            const {err, room, currentUser} = await initialUserRoomChecksAndDataRetrieval(socket.data.token, roomName);
+            // check if initial checks passed and we got the required userData and roomData
             if (err !== '') {
                 return callback(err);
-            }
-            // check if room exists
-            const {room, fetchRoomErr} = await roomsServiceSingleton.fetchRoom(roomName);
-
-            // return fetchRoom err
-            if (fetchRoomErr !== '') {
-                return callback(fetchRoomErr);
-            }
-
-            // check if user in actual room where he is sending a message
-            const {isUserInRoomErr} = usersServiceSingleton.checkIfUserInRoom(currentUser!, room!);
-            // check if isUserInRoomErr exists
-            if (isUserInRoomErr !== '') {
-                return callback(isUserInRoomErr);
             }
 
             // generate proper Message obj
             const chatMessage: Message = msgGeneratorSingleton.generateMessage(currentUser!, message);
             // update room chat history
-            const {err: saveChatError} = await roomsServiceSingleton.saveChatHistory(room!, chatMessage);
+            const {err: saveChatError, savedChatMessage} = await roomsServiceSingleton.saveChatHistory(room!, chatMessage);
             // check if err
             if (saveChatError !== '') {
                 return callback(saveChatError);
             }
 
             // emit socketIO only to sockets that are in the room
-            io.to(room!.name).emit('message', chatMessage);
+            io.to(room!.name).emit('message', savedChatMessage);
 
-            Logger.info(`Socket.ts: sendMessage() triggered for message ${chatMessage}`);
+            Logger.info(`Socket.ts: sendMessage() triggered for message ${savedChatMessage?.text}`);
 
             callback('Info: Message sent successfully!');
         });
 
         // HANDLE EDIT MESSAGE SOCKET_IO EVENT
         socket.on('editMessage', async ({roomName, editedMessage}: {roomName: string; editedMessage: Message}, callback) => {
-            Logger.debug(`socket.ts: editMessage: Triggered for roomName ${roomName} and editedMessage ${editedMessage}`);
+            Logger.debug(`socket.ts: editMessage: Triggered for roomName ${roomName} and editedMessage ${editedMessage.text}`);
             let customException: CustomException;
             // check if proper message was sent
-            if (!editedMessage || editedMessage.text === '') {
+            if (!editedMessage || editedMessage.text.trim() === '' || !editedMessage._id) {
                 customException = ExceptionFactory.createException(customExceptionType.invalidMessageSent);
                 return callback(customException.printError());
             }
 
-            const {currentUser, err} = await usersServiceSingleton.verifyUserTokenFetchUser(socket.data.token);
-
-            // check if verifyUserToken returned an error
+            // use helper method for initial room/user related checks and to retrieve currentUser data as well as room data
+            const {err, room} = await initialUserRoomChecksAndDataRetrieval(socket.data.token, roomName);
+            // check if initial checks passed and we got the required userData and roomData
             if (err !== '') {
                 return callback(err);
-            }
-            // check if room exists
-            const {room, fetchRoomErr} = await roomsServiceSingleton.fetchRoom(roomName);
-
-            // return fetchRoom err
-            if (fetchRoomErr !== '') {
-                return callback(fetchRoomErr);
-            }
-
-            // check if user in actual room where he is sending a message
-            const {isUserInRoomErr} = usersServiceSingleton.checkIfUserInRoom(currentUser!, room!);
-            // check if isUserInRoomErr exists
-            if (isUserInRoomErr !== '') {
-                return callback(isUserInRoomErr);
             }
 
             // check if user is author of the message that he is editing
@@ -422,6 +393,34 @@ export const socket = (server: http.Server) => {
     });
 }
 
+// initial user checks and get specific room and currentUser data
+const initialUserRoomChecksAndDataRetrieval = async (token: string, roomName: string): Promise<{err: string, room: RoomPopulatedUsers | undefined, currentUser: User | undefined}> =>  {
+
+    const {currentUser, err} = await  UsersService.getInstance().verifyUserTokenFetchUser(token);
+
+    // check if verifyUserToken returned an error
+    if (err !== '') {
+        return {err, room: undefined, currentUser: undefined};
+    }
+    // check if room exists
+    const {room, fetchRoomErr} = await RoomsService.getInstance().fetchRoom(roomName);
+
+    // return fetchRoom err
+    if (fetchRoomErr !== '') {
+        return {err: fetchRoomErr, room: undefined, currentUser: undefined};
+    }
+
+    // check if user in actual room where he is sending a message
+    const {isUserInRoomErr} = UsersService.getInstance().checkIfUserInRoom(currentUser!, room!);
+    // check if isUserInRoomErr exists
+    if (isUserInRoomErr !== '') {
+        return {err: isUserInRoomErr, room: undefined, currentUser: undefined};
+    }
+
+    return {err: '', room, currentUser};
+}
+
+// helper methods
 const sendInitialMessages = async (io: Server, socket: any, currentUser: User, roomName: string, callback: any) => {
     // get msgGeneratorSingleton instance
     const msgGeneratorSingleton = MessageGeneratorService.getInstance();
