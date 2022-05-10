@@ -22,7 +22,7 @@ export class MessageGeneratorService {
         if (!user) {
             author = {
                 id: '',
-                name: 'ADMIN'
+                name: 'Server'
             }
         } else {
             author = {

@@ -29,7 +29,7 @@ export const socket = (server: http.Server) => {
     const msgGeneratorSingleton = MessageGeneratorService.getInstance();
 
     // setup socketIO auth middleware, THIS ONLY RUNS ONCE ON SOCKET_IO CONNECTION ESTABLISHMENT!!!!
-    io.use(((socket, next) => {
+    io.use((async (socket, next) => {
         // check if socket auth payload is present
         if (socket.handshake.headers.cookie) {
             let userId: UserTokenPayload;
@@ -42,7 +42,14 @@ export const socket = (server: http.Server) => {
             } catch (err) {
                 if (err instanceof Error) {
                     Logger.warn(`Socket: AuthMiddleware: Failed to validate user auth header with err message ${err.message}`);
-                    const customException: CustomException = ExceptionFactory.createException(customExceptionType.unauthorizedAction);
+                    let customException: CustomException = ExceptionFactory.createException(customExceptionType.unauthorizedAction);
+                    // check if user token expired
+                    if (err.name === 'TokenExpiredError') {
+                        Logger.warn('ExpressMiddleware: TokenExpiredErr caught, cleanup user state using token from cookie.');
+                        customException = ExceptionFactory.createException(customExceptionType.expiredUserToken);
+                        // handle remove user from room and remove user's expired token
+                        await usersServiceSingleton.verifyUserTokenFetchUser(token!);
+                    }
                     next(new Error(customException.printError()));
                 }
             }
@@ -352,7 +359,60 @@ export const socket = (server: http.Server) => {
 
             // emit socketIO only to sockets that are in the room
             io.to(room!.name).emit('message', chatMessage);
+
+            Logger.info(`Socket.ts: sendMessage() triggered for message ${chatMessage}`);
+
             callback('Info: Message sent successfully!');
+        });
+
+        // HANDLE EDIT MESSAGE SOCKET_IO EVENT
+        socket.on('editMessage', async ({roomName, editedMessage}: {roomName: string; editedMessage: Message}, callback) => {
+            Logger.debug(`socket.ts: editMessage: Triggered for roomName ${roomName} and editedMessage ${editedMessage}`);
+            let customException: CustomException;
+            // check if proper message was sent
+            if (!editedMessage || editedMessage.text === '') {
+                customException = ExceptionFactory.createException(customExceptionType.invalidMessageSent);
+                return callback(customException.printError());
+            }
+
+            const {currentUser, err} = await usersServiceSingleton.verifyUserTokenFetchUser(socket.data.token);
+
+            // check if verifyUserToken returned an error
+            if (err !== '') {
+                return callback(err);
+            }
+            // check if room exists
+            const {room, fetchRoomErr} = await roomsServiceSingleton.fetchRoom(roomName);
+
+            // return fetchRoom err
+            if (fetchRoomErr !== '') {
+                return callback(fetchRoomErr);
+            }
+
+            // check if user in actual room where he is sending a message
+            const {isUserInRoomErr} = usersServiceSingleton.checkIfUserInRoom(currentUser!, room!);
+            // check if isUserInRoomErr exists
+            if (isUserInRoomErr !== '') {
+                return callback(isUserInRoomErr);
+            }
+
+            // check if user is author of the message that he is editing
+            const {checkIfMessageBelongsToUserErr} = usersServiceSingleton.checkIfMessageBelongsToUser(editedMessage, socket.data.userId);
+            // return err if message doesn't belong to user
+            if (checkIfMessageBelongsToUserErr !== '') {
+                return callback(checkIfMessageBelongsToUserErr);
+            }
+
+            // edit user message
+            const {err: editUserMessageErr, updatedRoom} = await usersServiceSingleton.editUserMessage(editedMessage, room!);
+            // check if message was edited and room was updated successfully
+            if (editUserMessageErr !== '') {
+                return callback(editUserMessageErr);
+            }
+
+            // emit socketIO event roomChatHistoryEdited only to sockets that are in the room while passing the updatedRoom data
+            io.to(room!.name).emit('roomDataUpdate', updatedRoom);
+            Logger.debug(`socket.ts: editMessage: emitted roomDataUpdate with updatedRoomData`);
         });
 
         // catch socketIO disconnect event
@@ -387,8 +447,8 @@ const sendUsersInRoomUpdate = async (io: Server, roomName: string, callback: any
         return callback(fetchRoomErr);
     }
     Logger.debug(`Socket.ts: sendUsersInRoomUpdate: Sent update with room data for room ${roomName}`);
-    // send socketIO roomUsersUpdate emit to all users within the room
-    io.to(roomName).emit('roomUsersUpdate', room);
+    // send socketIO roomDataUpdate emit to all users within the room
+    io.to(roomName).emit('roomDataUpdate', room);
 }
 
 const sendRoomsListUpdate = async (io: Server, callback: any) => {

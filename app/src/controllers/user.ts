@@ -16,7 +16,7 @@ const signUp = async (req: Request, res: Response) => {
         res
             .cookie('access_token', token, {
                 httpOnly: true,
-                maxAge: 10800000,
+                maxAge: 11100000,
                 secure: process.env.NODE_ENV === 'production'
             })
             .status(201).json({
@@ -54,7 +54,7 @@ const signIn = async (req: Request, res: Response) => {
         res
             .cookie('access_token', token, {
                 httpOnly: true,
-                maxAge: 10800000,
+                maxAge: 10900000,
                 secure: process.env.NODE_ENV === 'production'
             })
             .status(200).json({

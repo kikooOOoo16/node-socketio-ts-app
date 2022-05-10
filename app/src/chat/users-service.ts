@@ -3,6 +3,7 @@ import {UserTokenPayload} from "../interfaces/userTokenPayload";
 import {RoomPopulatedUsers} from "../interfaces/roomPopulatedUsers";
 import {User} from "../interfaces/user";
 import {Room} from "../interfaces/room";
+import {Message} from "../interfaces/message";
 import {User as UserModel} from "../db/models/user";
 import {Room as RoomModel} from "../db/models/room";
 import {customExceptionType} from "./exceptions/custom-exception-type";
@@ -83,10 +84,12 @@ export class UsersService {
                 if (room.usersInRoom && room.usersInRoom!.length > 0) {
                     // iterate through user ids in room
                     for (const id of room.usersInRoom) {
-
+                        Logger.debug(`Comparing user id ${userId} with userID inside room ${String(id)}`);
                         if (String(id) === userId) {
                             // if found in room remove user
+                            Logger.debug(`User with ${userId} found in room ${room.name}, removing user from room...`);
                             room.usersInRoom = room.usersInRoom!.filter((id) => String(id) !== userId);
+                            Logger.debug(`The updated usersInRoom array is ${[...room.usersInRoom]}`);
                             // update list in db
                             await RoomModel.findOneAndUpdate({name: room.name}, {'usersInRoom': room.usersInRoom});
                             // break parent loop
@@ -172,5 +175,58 @@ export class UsersService {
 
         // if all is well return found room and initial err value of ''
         return {err, foundRoom}
+    }
+
+    checkIfMessageBelongsToUser = (editedMessage: Message, userId: any) => {
+        let err = '';
+
+        if (String(editedMessage.author.id) !== userId) {
+            Logger.warn(`users-service: checkIfMessageBelongsToUser: Edit message failed for userId ${userId} and message author id ${String(editedMessage.author.id)}`);
+            this.customException = ExceptionFactory.createException(customExceptionType.unauthorizedAction);
+            err = this.customException.printError();
+            return {checkIfMessageBelongsToUserErr: err}
+        }
+        Logger.debug(`users-service: checkIfMessageBelongsToUser: The user ${userId} is definitely the author of the message ${String(editedMessage.author)}`);
+
+        return {checkIfMessageBelongsToUserErr: err}
+    }
+
+    editUserMessage = async (editedMessage: Message, room: RoomPopulatedUsers): Promise<{ err: string, updatedRoom: RoomPopulatedUsers | undefined }> => {
+        let err = '';
+        //edit specific message in room's chat history
+        for (let i = 0; i < room.chatHistory!.length; i++) {
+            if (String(room.chatHistory![i]._id) === String(editedMessage._id)) {
+                Logger.warn(`users-service: editUserMessage: editedMessage condition fulfilled`);
+                room.chatHistory![i].text = editedMessage.text;
+                room.chatHistory![i].edited = true;
+                break;
+            }
+        }
+
+        Logger.debug(`users-service: editUserMessage: Room with edited chat history = ${room}`);
+
+        try {
+            // update room chatHistory for selected room, new flag required to return room after update was applied
+            const updatedRoom: RoomPopulatedUsers | null = await RoomModel.findOneAndUpdate({name: room.name}, {'chatHistory': room.chatHistory}, {new: true})
+                .populate<{ usersInRoom: User[] }>({
+                    path: 'usersInRoom',
+                    select: '_id name email'
+                });
+            // if updateRoom was successful return updatedRoom
+            if (updatedRoom !== null) {
+                Logger.debug(`users-service: editUserMessage: Saved updatedRoom to DB.`);
+                return {err, updatedRoom};
+                // else updatedRoom is null so update failed return error
+            } else {
+                Logger.warn(`users-service: editUserMessage: Problem updating room's chat history. Update result updateRoom = ${updatedRoom}, possible that the required room name= ${room.name} was not found.`);
+                this.customException = ExceptionFactory.createException(customExceptionType.problemUpdatingRoom);
+                return {err, updatedRoom: undefined}
+            }
+        } catch (e) {
+            Logger.warn(`users-service: editUserMessage: Problem updating room's chat history. Err message = ${e.message}`);
+            this.customException = ExceptionFactory.createException(customExceptionType.problemUpdatingRoom);
+            err = this.customException.printError();
+            return {err, updatedRoom: undefined}
+        }
     }
 }

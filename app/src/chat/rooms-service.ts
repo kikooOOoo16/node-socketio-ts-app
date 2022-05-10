@@ -142,7 +142,7 @@ export class RoomsService {
             return {room: undefined, fetchRoomErr: err};
         }
 
-        Logger.debug(`RoomsService: Fetch Room: found room ${foundRoom}.`);
+        Logger.debug(`RoomsService: Fetch Room: found room ${{id: foundRoom!._id, roomName: foundRoom!.name, roomDescription: foundRoom!.description}}.`);
 
         // check if room exists
         if (!foundRoom) {
