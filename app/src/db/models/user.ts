@@ -42,7 +42,11 @@ const userSchema: Schema = new Schema({
                 required: true
             }
         }
-    ]
+    ],
+    socketId: {
+        type: String,
+        unique: true
+    }
 }, {
     timestamps: true
 });

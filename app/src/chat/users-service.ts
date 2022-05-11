@@ -26,9 +26,62 @@ export class UsersService {
         return UsersService.instance;
     }
 
+    saveUsersSocketID = async (userId: string, socketId: string): Promise<{ err: string }> => {
+        let err = '';
+        Logger.debug(`users-service: saveUsersSocketID: triggered for userId = ${userId} and socketID = ${socketId}`);
+
+        try {
+            // update user in DB with new socketId
+            await UserModel.findByIdAndUpdate(userId, {socketId: socketId});
+        } catch (e) {
+            // handle error
+            Logger.error(`users-service: saveUsersSocketID: failed saving user's socket id with err ${e.message}`);
+            this.customException = ExceptionFactory.createException(customExceptionType.problemSavingUserSocketID);
+            err = this.customException.printError();
+            return {err};
+        }
+        return {err};
+    }
+
+    removeUsersSocketID = async (userId: string, socketId: string): Promise<{ err: string }> => {
+        let err = '';
+        Logger.debug(`users-service: removeUsersSocketID: triggered for userId = ${userId} and socketID = ${socketId}`);
+
+        try {
+            // update user in DB with new socketId
+            await UserModel.findByIdAndUpdate(userId, {socketId: ''});
+        } catch (e) {
+            // handle error
+            Logger.error(`users-service: saveUsersSocketID: failed saving user's socket id with err ${e.message}`);
+            this.customException = ExceptionFactory.createException(customExceptionType.problemSavingUserSocketID);
+            err = this.customException.printError();
+            return {err};
+        }
+
+        return {err};
+    }
+
+    fetchUserById = async (userId: Schema.Types.ObjectId | string): Promise<{err: string, user: User| undefined }> => {
+        let err = '';
+
+        // find user by using the _id from the token
+        const user: User | null = await UserModel.findById(userId);
+        // check if currentUser was found
+        if (!user) {
+            Logger.warn(`Couldn't find user in db with provided userId= ${userId}`);
+            // get customException type from exceptionFactory and return unauthorizedAction error
+            this.customException = ExceptionFactory.createException(customExceptionType.unauthorizedAction);
+            err = this.customException.printError();
+            return {err, user: undefined};
+        }
+
+        return {err, user};
+    }
+
     verifyUserTokenFetchUser = async (token: string): Promise<{ currentUser: User | undefined, err: string }> => {
         let verifyUserErr = '';
         let decodedToken;
+
         try {
             // check user auth with token in request
             decodedToken = (jwt.verify(token, process.env.JWT_SECRET)) as UserTokenPayload;
@@ -59,6 +112,7 @@ export class UsersService {
             verifyUserErr = this.customException.printError();
             return {currentUser: undefined, err: verifyUserErr};
         }
+
         // find user by using the _id from the token
         const currentUser: User | null = await UserModel.findOne({_id: decodedToken._id, 'tokens.token': token});
         // check if currentUser was found

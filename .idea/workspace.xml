@@ -20,17 +20,17 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="e175c359-e26f-4692-b7a0-ee093b9498b3" name="Default Changelist" comment="">
+      <change afterPath="$PROJECT_DIR$/app/src/chat/exceptions/problem-saving-user-socket-id.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/src/chat/exceptions/unauthorized-action-not-room-author.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/src/interfaces/customSocket.ts" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/.eslintrc.json" beforeDir="false" afterPath="$PROJECT_DIR$/app/.eslintrc.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/app/package.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/src/chat/exceptions/custom-exception-type.ts" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/chat/exceptions/custom-exception-type.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/src/chat/exceptions/exception-factory.ts" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/chat/exceptions/exception-factory.ts" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/app/src/chat/rooms-service.ts" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/chat/rooms-service.ts" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/app/src/chat/socket.ts" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/chat/socket.ts" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/app/src/chat/users-service.ts" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/chat/users-service.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/src/controllers/user.ts" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/controllers/user.ts" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/app/src/db/models/user.ts" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/db/models/user.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/src/interfaces/message.ts" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/interfaces/message.ts" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/app/src/interfaces/userDocument.ts" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/interfaces/userDocument.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/src/middleware/middleware.ts" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/middleware/middleware.ts" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -52,7 +52,7 @@
     <property name="WebServerToolWindowFactoryState" value="false" />
     <property name="last_opened_file_path" value="$PROJECT_DIR$/Dockerfile" />
     <property name="nodejs_package_manager_path" value="npm" />
-    <property name="settings.editor.selected.configurable" value="project.propVCSSupport.Mappings" />
+    <property name="settings.editor.selected.configurable" value="preferences.pluginManager" />
     <property name="ts.external.directory.path" value="C:\Program Files\JetBrains\WebStorm 2020.1\plugins\JavaScriptLanguage\jsLanguageServicesImpl\external" />
   </component>
   <component name="SvnConfiguration">
@@ -72,7 +72,7 @@
       <workItem from="1652077064027" duration="5623000" />
       <workItem from="1652093381232" duration="29505000" />
       <workItem from="1652248889692" duration="3446000" />
-      <workItem from="1652252372522" duration="738000" />
+      <workItem from="1652252372522" duration="16693000" />
     </task>
     <servers />
   </component>
@@ -151,17 +151,25 @@
       <screen x="0" y="0" width="1920" height="1032" />
     </state>
     <state x="666" y="284" width="1016" height="748" key="#Log_Highlighting_(ideolog)/0.0.1920.1032@0.0.1920.1032" timestamp="1651761242140" />
+    <state x="707" y="318" key="#com.intellij.fileTypes.FileTypeChooser" timestamp="1652270964864">
+      <screen x="0" y="0" width="1920" height="1032" />
+    </state>
+    <state x="707" y="318" key="#com.intellij.fileTypes.FileTypeChooser/0.0.1920.1032@0.0.1920.1032" timestamp="1652270964864" />
+    <state x="690" y="263" key="#com.intellij.refactoring.safeDelete.UnsafeUsagesDialog" timestamp="1652270137571">
+      <screen x="0" y="0" width="1920" height="1032" />
+    </state>
+    <state x="690" y="263" key="#com.intellij.refactoring.safeDelete.UnsafeUsagesDialog/0.0.1920.1032@0.0.1920.1032" timestamp="1652270137571" />
     <state x="739" y="257" key="FileChooserDialogImpl" timestamp="1652248900143">
       <screen x="0" y="0" width="1920" height="1032" />
     </state>
     <state x="739" y="257" key="FileChooserDialogImpl/0.0.1920.1032@0.0.1920.1032" timestamp="1652248900143" />
-    <state x="461" y="161" key="SettingsEditor" timestamp="1651761118888">
+    <state x="461" y="161" key="SettingsEditor" timestamp="1652269882683">
       <screen x="0" y="0" width="1920" height="1032" />
     </state>
-    <state x="461" y="161" key="SettingsEditor/0.0.1920.1032@0.0.1920.1032" timestamp="1651761118888" />
-    <state x="667" y="251" width="585" height="530" key="find.popup" timestamp="1652188381636">
+    <state x="461" y="161" key="SettingsEditor/0.0.1920.1032@0.0.1920.1032" timestamp="1652269882683" />
+    <state x="220" y="256" width="1254" height="530" key="find.popup" timestamp="1652271214049">
       <screen x="0" y="0" width="1920" height="1032" />
     </state>
-    <state x="667" y="251" width="585" height="530" key="find.popup/0.0.1920.1032@0.0.1920.1032" timestamp="1652188381636" />
+    <state x="220" y="256" width="1254" height="530" key="find.popup/0.0.1920.1032@0.0.1920.1032" timestamp="1652271214049" />
   </component>
 </project>

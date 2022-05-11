@@ -7,4 +7,5 @@ export interface UserDocument extends Document {
     password?: string;
     currentRoom?: string;
     tokens? : string[];
+    socketId?: string;
 }

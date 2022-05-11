@@ -1,5 +1,6 @@
 export enum customExceptionType {
     unauthorizedAction = 'UNAUTHORIZED_ACTION',
+    unauthorizedActionNotRoomAuthor = 'UNAUTHORIZED_ACTION_NOT_ROOM_AUTHOR',
     expiredUserToken = 'EXPIRED_USER_TOKEN',
     userDataMissing = 'USER_DATA_MISSING',
     userNameTaken = 'USER_NAME_TAKEN',
@@ -17,4 +18,5 @@ export enum customExceptionType {
     problemUpdatingRoom = 'PROBLEM_UPDATING_ROOM',
     problemDeletingRoom = 'PROBLEM_DELETING_ROOM',
     profaneLanguageNotAllowed = 'PROFANE_LANGUAGE_NOT_ALLOWED',
+    problemSavingUserSocketID = 'PROBLEM_SAVING_USER_SOCKET_ID',
 }

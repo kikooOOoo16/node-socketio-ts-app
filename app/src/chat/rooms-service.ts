@@ -239,19 +239,9 @@ export class RoomsService {
     }
 
     // leave a room
-    leaveRoom = async (currentUser: User, roomName: string): Promise<{ err: string }> => {
+    leaveRoom = async (currentUserId: Schema.Types.ObjectId| string, room: RoomPopulatedUsers): Promise<{ err: string }> => {
         let err = '';
         let usersInRoom: User[] | undefined;
-
-        Logger.debug(`RoomsService: Leave Room: Called fetchRoom().`);
-        // fetch roomData for provided roomName
-        const {room, fetchRoomErr: checkInputAndFormatErr} = await this.fetchRoom(roomName);
-
-        // check if proper room obj or error msg
-        if (checkInputAndFormatErr !== '') {
-            err = checkInputAndFormatErr;
-            return {err};
-        }
 
         // get currentUsersArray
         usersInRoom = room?.usersInRoom;
@@ -259,7 +249,7 @@ export class RoomsService {
         // check if user is not in the current room
         if (usersInRoom && usersInRoom.length > 0) {
             // compare by userId, id values must be of type string because ObjectID === fails (different references)
-            const foundUser = usersInRoom.find((user: User) => String(user._id) === String(currentUser._id));
+            const foundUser = usersInRoom.find((user: User) => String(user._id) === String(currentUserId));
             Logger.debug(`RoomsService: Leave Room: Found user  ${foundUser?.name}.`);
             // if user found in room return error
             if (!foundUser) {
@@ -269,17 +259,16 @@ export class RoomsService {
                 return {err}
             }
         }
-
         // remove user from current room, must convert ObjectID into string because === fails (different references);
-        usersInRoom = usersInRoom!.filter((userId: any) => String(userId._id) !== String(currentUser._id));
+        usersInRoom = usersInRoom!.filter((userId: any) => String(userId._id) !== String(currentUserId));
 
         Logger.debug(`RoomsService: Leave Room: Updated usersInRoom array  ${usersInRoom}.`);
 
         // if all goes well update room in DB with new usersInRoom array
-        const {err: updateUsersInRoomErr} = await this.updateUsersInRoom(room!.name, usersInRoom);
+        const {err: updateUsersInRoomErr} = await this.updateUsersInRoom(room.name, usersInRoom);
         // check if usersInRoom were updated
         if (updateUsersInRoomErr !== '') {
-            Logger.warn(`RoomsService: Leave Room: Failed to update users in room ${roomName} with error message: ${updateUsersInRoomErr}`);
+            Logger.warn(`RoomsService: Leave Room: Failed to update users in room ${room.name} with error message: ${updateUsersInRoomErr}`);
             err = updateUsersInRoomErr;
             return {err};
         }
@@ -287,32 +276,25 @@ export class RoomsService {
         return {err};
     }
 
-    //helper method that checks if a provided name is already in use
-    checkIfRoomNameExists = async (name: string, roomToEditID: Schema.Types.ObjectId): Promise<{ err: string }> => {
+    // kick a certain user from a room
+    kickUserFromRoom = async (room: RoomPopulatedUsers, userId: string, currentUser: User): Promise<{ err: string }> => {
         let err = '';
-        let foundRoom: Room | null = null;
-
-        //search for room with given room name
-        try {
-            foundRoom = await RoomModel.findOne({name: name, _id: {$ne: roomToEditID}});
-        } catch (e) {
-            // ts compiler error if no type assertion here
-            if (e instanceof Error) {
-                Logger.warn(`RoomsService: checkIfRoomNameExists: Failed to retrieve room data for room name ${name} with error message: ${e.message}`);
-                this.customException = ExceptionFactory.createException(customExceptionType.problemRetrievingData);
-                err = this.customException.printError();
-                return {err};
-            }
-        }
-
-        Logger.debug(`RoomsService: checkIfRoomNameExists: foundRoom =  ${foundRoom}`);
-
-        // check if room was found
-        if (foundRoom) {
-            this.customException = ExceptionFactory.createException(customExceptionType.roomNameTaken);
+        // check if current user is the author/admin of the room
+        if (String(room.author) !== String(currentUser._id)) {
+            Logger.warn(`rooms-service: kickUserFromRoom: Unauthorized action err: The currentUser ${String(currentUser._id)} is not the rooms author = ${String(room.author)}`)
+            this.customException = ExceptionFactory.createException(customExceptionType.unauthorizedActionNotRoomAuthor);
             err = this.customException.printError();
             return {err};
         }
+
+        // attempt to remove specific user by userId from room
+        const {err: leaveRoomErr} = await this.leaveRoom(userId, room);
+        // if err return callback with err message
+        if (leaveRoomErr) {
+            err = leaveRoomErr;
+            return {err};
+        }
+
         return {err};
     }
 
@@ -349,6 +331,35 @@ export class RoomsService {
         }
         // return err
         return {err: saveChatError, savedChatMessage: newlySavedMessage};
+    }
+
+    //helper method that checks if a provided name is already in use
+    checkIfRoomNameExists = async (name: string, roomToEditID: Schema.Types.ObjectId): Promise<{ err: string }> => {
+        let err = '';
+        let foundRoom: Room | null = null;
+
+        //search for room with given room name
+        try {
+            foundRoom = await RoomModel.findOne({name: name, _id: {$ne: roomToEditID}});
+        } catch (e) {
+            // ts compiler error if no type assertion here
+            if (e instanceof Error) {
+                Logger.warn(`RoomsService: checkIfRoomNameExists: Failed to retrieve room data for room name ${name} with error message: ${e.message}`);
+                this.customException = ExceptionFactory.createException(customExceptionType.problemRetrievingData);
+                err = this.customException.printError();
+                return {err};
+            }
+        }
+
+        Logger.debug(`RoomsService: checkIfRoomNameExists: foundRoom =  ${foundRoom}`);
+
+        // check if room was found
+        if (foundRoom) {
+            this.customException = ExceptionFactory.createException(customExceptionType.roomNameTaken);
+            err = this.customException.printError();
+            return {err};
+        }
+        return {err};
     }
 
     // helper method that updates users in specified room

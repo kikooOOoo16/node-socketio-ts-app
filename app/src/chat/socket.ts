@@ -1,4 +1,4 @@
-import {Server} from 'socket.io';
+import {Server, Socket} from 'socket.io';
 import * as http from "http";
 import jwt from 'jsonwebtoken';
 import Logger from "../logger/logger";
@@ -30,10 +30,11 @@ export const socket = (server: http.Server) => {
     const msgGeneratorSingleton = MessageGeneratorService.getInstance();
 
     // setup socketIO auth middleware, THIS ONLY RUNS ONCE ON SOCKET_IO CONNECTION ESTABLISHMENT!!!!
-    io.use((async (socket, next) => {
+    io.use((async (socket: Socket, next) => {
         // check if socket auth payload is present
         if (socket.handshake.headers.cookie) {
             let userId: UserTokenPayload;
+            let customException: CustomException;
             // get token value from cookie, token is stored as access_token=token-value string
             const token = socket.handshake.headers.cookie?.split('=')[1];
 
@@ -43,7 +44,7 @@ export const socket = (server: http.Server) => {
             } catch (err) {
                 if (err instanceof Error) {
                     Logger.warn(`Socket: AuthMiddleware: Failed to validate user auth header with err message ${err.message}`);
-                    let customException: CustomException = ExceptionFactory.createException(customExceptionType.unauthorizedAction);
+                    customException = ExceptionFactory.createException(customExceptionType.unauthorizedAction);
                     // check if user token expired
                     if (err.name === 'TokenExpiredError') {
                         Logger.warn('ExpressMiddleware: TokenExpiredErr caught, cleanup user state using token from cookie.');
@@ -53,6 +54,12 @@ export const socket = (server: http.Server) => {
                     }
                     next(new Error(customException.printError()));
                 }
+            }
+            // save users tokenId to DB
+            const {err: saveUsersSocketIDErr} = await usersServiceSingleton.saveUsersSocketID(userId!._id, socket.id);
+            // check if socketId was saved if not return err
+            if (saveUsersSocketIDErr !== '') {
+                next(new Error(saveUsersSocketIDErr));
             }
             // if no err set userId and token as session variables on data property
             socket.data.userId = userId!._id;
@@ -69,7 +76,7 @@ export const socket = (server: http.Server) => {
 
 
     // listen to new connection and get socket instance of the connected party
-    io.on('connection', socket => {
+    io.on('connection', (socket: Socket) => {
         Logger.debug(`Socket: io.on connection: New Websocket connection.`);
 
         // HANDLE INCOMING CREATE ROOM SOCKET_IO REQUEST
@@ -147,7 +154,7 @@ export const socket = (server: http.Server) => {
                 return callback(fetchUserRoomsErr);
             }
 
-            // emit fetchUserRooms socketIO event with allUserRooms found
+            // emit fetchUserRooms socketIO event with allUserRooms found to specific socket
             socket.emit('fetchUserRooms', allUserRooms);
         });
 
@@ -172,6 +179,25 @@ export const socket = (server: http.Server) => {
             // check if deleteRoom passed if not return err
             if (deleteRoomErr !== '') {
                 return callback(deleteRoomErr);
+            }
+
+            // delete room from socketIO itself by removing all the sockets from it
+            // get socketIO clientSocket ids for all sockets that are in room
+            const clientSocketIds = io.sockets.adapter.rooms.get(foundRoom!.name);
+            if (clientSocketIds && clientSocketIds.size !== 0) {
+                // iterate through all clientSocket ids that are in the room
+                for (const clientId of clientSocketIds ) {
+                    // get client socket of user in room by using its id
+                    const clientSocket = io.sockets.sockets.get(clientId);
+                    // if the clientSocket was retrieved call leave on it in order to remove it from the room
+                    if (clientSocket) {
+                        //you can do whatever you need with this
+                        clientSocket.leave(foundRoom!.name);
+                    }
+                }
+                Logger.debug(`socket.ts deleteRoom: removed all sockets from SocketIO instance of the room.`);
+            } else {
+                Logger.warn(`socket.ts deleteRoom: Failed to retrieve the socketIds of all the clients inside the room ${foundRoom?.name}`);
             }
 
             // send roomsListUpdate to all sockets
@@ -228,8 +254,16 @@ export const socket = (server: http.Server) => {
                 return callback(err);
             }
 
+            // fetch roomData for provided roomName
+            const {room, fetchRoomErr} = await roomsServiceSingleton.fetchRoom(roomName);
+
+            // check if proper room obj or error msg
+            if (fetchRoomErr !== '') {
+                return callback(err);
+            }
+
             // update roomsState by removing the user
-            const {err: leaveRoomErr} = await roomsServiceSingleton.leaveRoom(currentUser!, roomName);
+            const {err: leaveRoomErr} = await roomsServiceSingleton.leaveRoom(currentUser!._id, room!);
 
             // if err return callback with err message
             if (leaveRoomErr) {
@@ -247,6 +281,58 @@ export const socket = (server: http.Server) => {
             // send socketIO emit to all users within the room
             const userLeftMsg: Message = msgGeneratorSingleton.generateMessage(undefined, `${currentUser?.name} has left the chat.`);
             io.to(roomName).emit('message', userLeftMsg);
+        });
+
+        // HANDLE INCOMING KICK_USER_FROM_ROOM SOCKET_IO REQUEST
+        socket.on('kickUserFromRoom', async ({roomName, userId}, callback) => {
+
+            Logger.debug(`socket.ts: kickUserFromRoom triggered for room ${roomName} and userId ${userId}`);
+
+            // verify user token helper
+            const {currentUser, err: verifyTokenErr} = await usersServiceSingleton.verifyUserTokenFetchUser(socket.data.token);
+            // check if verifyUserToken returned an error
+            if (verifyTokenErr !== '') {
+                return callback(verifyTokenErr);
+            }
+
+            // fetch room by room name
+            const {room, fetchRoomErr} = await roomsServiceSingleton.fetchRoom(roomName);
+
+            // if an error occurred return error string
+            if (fetchRoomErr !== '') {
+                return callback(fetchRoomErr);
+            }
+
+            const {err: kickUserErr} = await roomsServiceSingleton.kickUserFromRoom(room!, userId, currentUser!);
+            // check if user was removed from the room
+            if (kickUserErr !== '') {
+                return callback(kickUserErr);
+            }
+
+            // get kicked user data
+            const {err: findUserErr, user} = await usersServiceSingleton.fetchUserById(userId);
+            // check if user data was found in DB
+            if (findUserErr !== '') {
+                return callback(findUserErr);
+            }
+
+            // if we got here user exists, get socket instance by using user's socketID and call leave room on that instance
+            if (user!.socketId) {
+                const client = io.sockets.sockets.get(user!.socketId);
+                client!.leave(roomName);
+                Logger.debug(`Socket: socket.on kickUserFromRoom: Updated socketIO room state by removing socketInstance ${user?.socketId} from room.`);
+            } else {
+                Logger.error(`Socket: socket.on kickUserFromRoom: Problem removing user from SocketIO room with socketID ${user?.socketId} roomName= ${roomName}`);
+            }
+
+            // send roomUsersUpdate to all sockets in current room
+            await sendUsersInRoomUpdate(io, roomName, callback);
+
+            Logger.debug(`Socket: socket.on kickUserFromRoom: The user ${user?.name} was kicked from the room ${roomName} successfully.`);
+
+            // send socketIO emit to all users within the room that the user was kicked
+            const userWasKickedMsg: Message = msgGeneratorSingleton.generateMessage(undefined, `${user?.name} was kicked from the room.`);
+            io.to(roomName).emit('message', userWasKickedMsg);
         });
 
         // HANDLE INCOMING FETCH_ROOM SOCKET_IO REQUEST
@@ -386,13 +472,17 @@ export const socket = (server: http.Server) => {
             Logger.debug(`socket.ts: editMessage: emitted roomDataUpdate with updatedRoomData`);
         });
 
-        // catch socketIO disconnect event
-        socket.on('disconnect', reason => {
+        // CATCH SOCKET_IO DISCONNECT EVENT
+        socket.on('disconnect', async (reason: string) => {
+            // remove user's socketId from DB before disconnect
+            await usersServiceSingleton.removeUsersSocketID(socket.data.userId, socket.id);
+
             Logger.warn(`Socket: socket.on disconnect: SocketIO connection closed for socket ${socket.id}. Reason: ${reason}.`);
         });
     });
 }
 
+// HELPER METHODS
 // initial user checks and get specific room and currentUser data
 const initialUserRoomChecksAndDataRetrieval = async (token: string, roomName: string): Promise<{err: string, room: RoomPopulatedUsers | undefined, currentUser: User | undefined}> =>  {
 
@@ -420,7 +510,6 @@ const initialUserRoomChecksAndDataRetrieval = async (token: string, roomName: st
     return {err: '', room, currentUser};
 }
 
-// helper methods
 const sendInitialMessages = async (io: Server, socket: any, currentUser: User, roomName: string, callback: any) => {
     // get msgGeneratorSingleton instance
     const msgGeneratorSingleton = MessageGeneratorService.getInstance();

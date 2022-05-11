@@ -17,6 +17,8 @@ import {InvalidMessageSent} from "./invalid-message-sent";
 import {ProblemUpdatingRoom} from "./problem-updating-room";
 import {ProblemDeletingRoom} from "./problem-deleting-room";
 import {ProfaneLanguageNotAllowed} from "./profane-language-not-allowed";
+import {UnauthorizedActionNotRoomAuthor} from "./unauthorized-action-not-room-author";
+import {ProblemSavingUserSocketId} from "./problem-saving-user-socket-id";
 
 export class ExceptionFactory {
     static createException = (exceptionType: customExceptionType)  => {
@@ -57,6 +59,10 @@ export class ExceptionFactory {
                 return new ProblemDeletingRoom();
             case customExceptionType.profaneLanguageNotAllowed:
                 return new ProfaneLanguageNotAllowed();
+            case customExceptionType.unauthorizedActionNotRoomAuthor:
+                return new UnauthorizedActionNotRoomAuthor();
+            case customExceptionType.problemSavingUserSocketID:
+                return new ProblemSavingUserSocketId();
         }
     }
 }
