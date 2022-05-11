@@ -1,4 +1,4 @@
-import {NextFunction, Request, Response} from "express";
+import {Request, Response} from "express";
 import {User as UserModel} from "../db/models/user";
 import {UserNameTaken} from "../chat/exceptions/user-name-taken";
 import Logger from "../logger/logger";
@@ -82,14 +82,14 @@ const logout = async (req: Request, res: Response) => {
         // clear user cookies
         res.clearCookie('access_token')
 
-        Logger.debug(`Controllers: logout: User logged out: ${req.user!.name}.`);
+        Logger.debug(`Controllers: logout: User logged out: ${req.user?.name}.`);
 
         res.status(200).json({
             message: 'User logged out.'
         });
     } catch (e) {
         if (e instanceof Error) {
-            Logger.warn(`Controllers: logout: Problem logging out user : ${req.user!.name} with err message ${e.message}.`);
+            Logger.warn(`Controllers: logout: Problem logging out user : ${req.user?.name} with err message ${e.message}.`);
         }
 
         res.status(500).json({
@@ -104,7 +104,7 @@ const logoutAll = async (req: Request, res: Response) => {
         req.user!.tokens = [];
         await req.user!.save();
 
-        Logger.debug(`Controllers: logoutAll: User logged out of all sessions: ${req.user!.name}.`);
+        Logger.debug(`Controllers: logoutAll: User logged out of all sessions: ${req.user?.name}.`);
 
         res.status(200).json({
             message: 'User logged out from all sessions.'
@@ -122,15 +122,15 @@ const logoutAll = async (req: Request, res: Response) => {
     }
 }
 
-const userProfile = async (req: Request, res: Response, next: NextFunction) => {
+const userProfile = async (req: Request, res: Response) => {
     try {
-        Logger.debug(`Controllers: userProfile: User profile retrieved for user: ${req.user!.name}.`);
+        Logger.debug(`Controllers: userProfile: User profile retrieved for user: ${req.user?.name}.`);
 
         res.status(200).json({
             user: req.user
         });
     } catch ({message}) {
-        Logger.debug(`Controllers: userProfile: Problem reading user profile for user: ${req.user!.name} with err message ${message}.`);
+        Logger.debug(`Controllers: userProfile: Problem reading user profile for user: ${req.user?.name} with err message ${message}.`);
         res.status(401).json({
             message
         });

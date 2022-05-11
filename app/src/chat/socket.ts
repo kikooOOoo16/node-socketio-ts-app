@@ -35,7 +35,7 @@ export const socket = (server: http.Server) => {
         if (socket.handshake.headers.cookie) {
             let userId: UserTokenPayload;
             // get token value from cookie, token is stored as access_token=token-value string
-            const token = socket.handshake.headers.cookie!.split('=')[1];
+            const token = socket.handshake.headers.cookie?.split('=')[1];
 
             try {
                 // verify token validity
@@ -245,7 +245,7 @@ export const socket = (server: http.Server) => {
             Logger.debug(`Socket: socket.on leaveRoom: The socket ${socket.id} has left the room ${roomName}.`);
 
             // send socketIO emit to all users within the room
-            const userLeftMsg: Message = msgGeneratorSingleton.generateMessage(undefined, `${currentUser!.name} has left the chat.`);
+            const userLeftMsg: Message = msgGeneratorSingleton.generateMessage(undefined, `${currentUser?.name} has left the chat.`);
             io.to(roomName).emit('message', userLeftMsg);
         });
 

@@ -10,7 +10,7 @@ import Logger from "../logger/logger";
 
 // check authentication middleware
 const auth = async (req: Request, res: Response, next: NextFunction) => {
-    let exceptionMsg: string = '';
+    let exceptionMsg = '';
     let token: string;
     if (req.cookies && req.cookies.access_token) {
         // retrieve cookie access_token

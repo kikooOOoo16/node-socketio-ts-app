@@ -27,7 +27,7 @@ export class UsersService {
     }
 
     verifyUserTokenFetchUser = async (token: string): Promise<{ currentUser: User | undefined, err: string }> => {
-        let verifyUserErr: string = '';
+        let verifyUserErr = '';
         let decodedToken;
         try {
             // check user auth with token in request
@@ -81,14 +81,14 @@ export class UsersService {
         allRoomsLoop:
             for (const room of allRooms) {
                 // if usersInRoom array exists, check if user is in the room
-                if (room.usersInRoom && room.usersInRoom!.length > 0) {
+                if (room.usersInRoom && room.usersInRoom?.length > 0) {
                     // iterate through user ids in room
                     for (const id of room.usersInRoom) {
                         Logger.debug(`Comparing user id ${userId} with userID inside room ${String(id)}`);
                         if (String(id) === userId) {
                             // if found in room remove user
                             Logger.debug(`User with ${userId} found in room ${room.name}, removing user from room...`);
-                            room.usersInRoom = room.usersInRoom!.filter((id) => String(id) !== userId);
+                            room.usersInRoom = room.usersInRoom?.filter((id) => String(id) !== userId);
                             Logger.debug(`The updated usersInRoom array is ${[...room.usersInRoom]}`);
                             // update list in db
                             await RoomModel.findOneAndUpdate({name: room.name}, {'usersInRoom': room.usersInRoom});
@@ -141,7 +141,7 @@ export class UsersService {
         currentUser.tokens = currentUser.tokens?.filter((tokenObj: any) => tokenObj.token !== token);
 
         // save user data without current req token
-        await currentUser!.save();
+        await currentUser?.save();
     }
 
     checkUserRoomOwnershipFetchRoom = async (_id: Schema.Types.ObjectId | undefined, roomId: string): Promise<{ err: string, foundRoom: Room | undefined }> => {
@@ -177,7 +177,7 @@ export class UsersService {
         return {err, foundRoom}
     }
 
-    checkIfMessageBelongsToUser = (editedMessage: Message, userId: any) => {
+    checkIfMessageBelongsToUser = (editedMessage: Message, userId: string) => {
         let err = '';
 
         if (String(editedMessage.author.id) !== userId) {

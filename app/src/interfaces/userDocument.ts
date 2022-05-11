@@ -6,5 +6,5 @@ export interface UserDocument extends Document {
     email: string;
     password?: string;
     currentRoom?: string;
-    tokens? : String[];
+    tokens? : string[];
 }

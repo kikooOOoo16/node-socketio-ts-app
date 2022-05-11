@@ -151,7 +151,7 @@ export class RoomsService {
             return {room: undefined, fetchRoomErr: err};
         }
 
-        Logger.debug(`RoomsService: Fetch Room: found room ${foundRoom!.name}.`);
+        Logger.debug(`RoomsService: Fetch Room: found room ${foundRoom?.name}.`);
 
         return {room: foundRoom, fetchRoomErr: err};
     }
@@ -195,7 +195,6 @@ export class RoomsService {
     // join a room
     joinRoom = async (currentUser: User, roomName: string): Promise<{ err: string }> => {
         let err = '';
-        let usersInRoom: User[] | undefined;  // THIS IS THE WRONG TYPE DON'T FORGET TO FIX IT !!!!!
 
         Logger.debug(`RoomsService: Join Room: Called fetchRoom().`);
         const {room, fetchRoomErr: checkInputAndFormatErr} = await this.fetchRoom(roomName);
@@ -206,14 +205,14 @@ export class RoomsService {
             return {err};
         }
         // get currentUsersArray
-        usersInRoom = room!.usersInRoom;
+        const usersInRoom: User[] | undefined = room?.usersInRoom;
 
         Logger.debug(`RoomsService: JoinRoom: CurrentUsers in room array: ${usersInRoom ? usersInRoom : '0'}.`);
 
         // check if user already in the room
         if (usersInRoom && usersInRoom.length > 0) {
             // compare by userId, id values must be of type string because ObjectID === fails (different references)
-            const foundUser = usersInRoom.find((user: any) => String(user._id) === String(currentUser._id));
+            const foundUser = usersInRoom.find((user: User) => String(user._id) === String(currentUser._id));
             // if user found in room return error
             if (foundUser) {
                 Logger.warn(`RoomsService: JoinRoom: Join room failed for User ${currentUser.name} and room ${roomName}, user is already in room.`);
@@ -225,8 +224,8 @@ export class RoomsService {
         }
 
         // if all check passed add user to room's users array
-        // @ts-ignore actually want to add only id, this is related to wrong type comment remark above
-        usersInRoom!.push(currentUser._id);
+        // @ts-ignore actually want to add only id
+        usersInRoom?.push(currentUser._id);
         Logger.debug(`RoomsService: JoinRoom: Added user ${currentUser.name} to room array.`);
 
         // if all goes well update room in DB with new usersInRoom array
@@ -260,8 +259,8 @@ export class RoomsService {
         // check if user is not in the current room
         if (usersInRoom && usersInRoom.length > 0) {
             // compare by userId, id values must be of type string because ObjectID === fails (different references)
-            const foundUser = usersInRoom.find((user: any) => String(user._id) === String(currentUser._id));
-            Logger.debug(`RoomsService: Leave Room: Found user  ${foundUser}.`);
+            const foundUser = usersInRoom.find((user: User) => String(user._id) === String(currentUser._id));
+            Logger.debug(`RoomsService: Leave Room: Found user  ${foundUser?.name}.`);
             // if user found in room return error
             if (!foundUser) {
                 // get customException type from exceptionFactory

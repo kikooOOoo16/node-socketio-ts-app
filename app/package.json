@@ -8,7 +8,7 @@
     "start": "env-cmd -e development ts-node dist/server.js",
     "build": "tsc -p .",
     "dev": "env-cmd -e development ts-node-dev --respawn --watch ./**/*.ts --transpile-only server.ts",
-    "lint": "eslint app --ext .ts"
+    "lint": "eslint src --ext .ts"
   },
   "author": "Kristijan",
   "license": "ISC",
