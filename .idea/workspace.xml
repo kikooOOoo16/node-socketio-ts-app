@@ -20,17 +20,9 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="e175c359-e26f-4692-b7a0-ee093b9498b3" name="Default Changelist" comment="">
-      <change afterPath="$PROJECT_DIR$/app/src/chat/exceptions/problem-saving-user-socket-id.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/app/src/chat/exceptions/unauthorized-action-not-room-author.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/app/src/interfaces/customSocket.ts" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/src/chat/exceptions/custom-exception-type.ts" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/chat/exceptions/custom-exception-type.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/src/chat/exceptions/exception-factory.ts" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/chat/exceptions/exception-factory.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/src/chat/rooms-service.ts" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/chat/rooms-service.ts" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/app/src/chat/socket.ts" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/chat/socket.ts" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/app/src/chat/users-service.ts" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/chat/users-service.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/src/db/models/user.ts" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/db/models/user.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/src/interfaces/userDocument.ts" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/interfaces/userDocument.ts" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -72,7 +64,8 @@
       <workItem from="1652077064027" duration="5623000" />
       <workItem from="1652093381232" duration="29505000" />
       <workItem from="1652248889692" duration="3446000" />
-      <workItem from="1652252372522" duration="16693000" />
+      <workItem from="1652252372522" duration="17485000" />
+      <workItem from="1652335972386" duration="4208000" />
     </task>
     <servers />
   </component>

@@ -75,6 +75,7 @@ export class UsersService {
             return {err, user: undefined};
         }
 
+        Logger.debug(`users-service: fetchUserById: Successfully fetcher user data for user name= ${user.name}`);
         return {err, user};
     }
 
@@ -123,6 +124,7 @@ export class UsersService {
             verifyUserErr = this.customException.printError();
             return {currentUser: undefined, err: verifyUserErr};
         }
+        Logger.debug(`users-service: verifyUserTokenFetchUser: Successfully verified token, and returning user name = ${currentUser.name}`);
         // if all is good return currentUser
         return {currentUser, err: verifyUserErr};
     }

@@ -230,7 +230,7 @@ export const socket = (server: http.Server) => {
 
             // if err return callback with err message
             if (joinRoomErr !== '') {
-                callback(joinRoomErr);
+                return callback(joinRoomErr);
             }
             // if no err socket joins the room
             socket.join(roomName);
@@ -320,6 +320,10 @@ export const socket = (server: http.Server) => {
             if (user!.socketId) {
                 const client = io.sockets.sockets.get(user!.socketId);
                 client!.leave(roomName);
+                // generate kickedFromRoomMsg and notify the client socket that it was kicked from the room
+                const kickedFromRoomMsg = msgGeneratorSingleton.generateMessage(undefined, 'You were kicked from the room by the admin.');
+                client!.emit('kickedFromRoom', kickedFromRoomMsg);
+
                 Logger.debug(`Socket: socket.on kickUserFromRoom: Updated socketIO room state by removing socketInstance ${user?.socketId} from room.`);
             } else {
                 Logger.error(`Socket: socket.on kickUserFromRoom: Problem removing user from SocketIO room with socketID ${user?.socketId} roomName= ${roomName}`);
