@@ -10,5 +10,4 @@ export class InvalidRoomQuery extends CustomException {
     printError = (): string => {
         return 'Error: Invalid query. The requested room couldn\'t be found.';
     }
-
 }

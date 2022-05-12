@@ -10,5 +10,4 @@ export class MissingQueryData extends CustomException {
     printError = (): string => {
         return 'Error: Missing query data. Please pass all the required data.';
     }
-
 }

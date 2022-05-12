@@ -54,6 +54,12 @@ const roomSchema = new Schema<Room>({
             ref: 'User'
         }
     ],
+    bannedUsersFromRoom: [
+        {
+            type: Schema.Types.ObjectId,
+            ref: 'User'
+        }
+    ],
     chatHistory: [messageSchema]
 }, {
     timestamps: true

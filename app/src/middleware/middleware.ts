@@ -32,12 +32,12 @@ const auth = async (req: Request, res: Response, next: NextFunction) => {
         } catch (err) {
             if (err instanceof Error) {
                 Logger.warn('ExpressMiddleware: Unauthorized action caught.');
-                let customException: CustomException = ExceptionFactory.createException(customExceptionType.unauthorizedAction);
+                let customException: CustomException = ExceptionFactory.createException(customExceptionType.UNAUTHORIZED_ACTION);
                 exceptionMsg = customException.printError();
                 // check if tokenExpiredError thrown and handle cleanup
                 if (err.name === 'TokenExpiredError') {
                     Logger.warn('ExpressMiddleware: TokenExpiredErr caught, cleanup user state using token from cookie.');
-                    customException = ExceptionFactory.createException(customExceptionType.expiredUserToken);
+                    customException = ExceptionFactory.createException(customExceptionType.EXPIRED_USER_TOKEN);
                     exceptionMsg = customException.printError();
                     // handle remove user from room and remove user's expired token
                     await UsersService.getInstance().verifyUserTokenFetchUser(token!);
@@ -51,7 +51,7 @@ const auth = async (req: Request, res: Response, next: NextFunction) => {
     } else {
         // no cookie found, return unauthorized action response code
         res.status(401).json({
-            message: ExceptionFactory.createException(customExceptionType.unauthorizedAction).printError()
+            message: ExceptionFactory.createException(customExceptionType.UNAUTHORIZED_ACTION).printError()
         });
     }
 }

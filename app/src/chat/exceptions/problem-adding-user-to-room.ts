@@ -10,5 +10,4 @@ export class ProblemAddingUserToRoom extends CustomException {
     printError = (): string => {
         return 'Error: There was a problem adding the current user to the room.';
     }
-
 }

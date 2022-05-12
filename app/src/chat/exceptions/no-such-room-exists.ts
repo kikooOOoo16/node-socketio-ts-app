@@ -10,5 +10,4 @@ export class NoSuchRoomExists extends CustomException {
     printError = (): string => {
         return 'Error: The requested room doesn\'t exist.';
     }
-
 }

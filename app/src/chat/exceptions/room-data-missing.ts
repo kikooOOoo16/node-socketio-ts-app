@@ -10,5 +10,4 @@ export class RoomDataMissing extends CustomException {
     printError = (): string => {
         return 'Error: Required room data is missing. Please pass all the required data.';
     }
-
 }

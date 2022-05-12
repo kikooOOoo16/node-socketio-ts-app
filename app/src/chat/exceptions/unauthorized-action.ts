@@ -10,5 +10,4 @@ export class UnauthorizedAction extends CustomException {
     printError = (): string => {
         return 'Error: Unauthorized action!';
     }
-
 }

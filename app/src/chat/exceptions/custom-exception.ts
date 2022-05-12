@@ -4,6 +4,5 @@ export abstract class CustomException extends Error {
         super(message);
         Object.setPrototypeOf(this, CustomException.prototype);
     }
-
     abstract printError(): string;
 }

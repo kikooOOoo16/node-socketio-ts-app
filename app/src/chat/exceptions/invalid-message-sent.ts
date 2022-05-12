@@ -10,5 +10,4 @@ export class InvalidMessageSent extends CustomException {
     printError = (): string => {
         return `Error: Invalid message sent. Message must exist and can't be an empty string.`;
     }
-
 }

@@ -10,5 +10,4 @@ export class ProblemDeletingRoom extends CustomException {
     printError = (): string => {
         return 'Error: There was a problem deleting the specified room.';
     }
-
 }

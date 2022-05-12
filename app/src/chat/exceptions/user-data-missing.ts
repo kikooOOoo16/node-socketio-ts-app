@@ -10,5 +10,4 @@ export class UserDataMissing extends CustomException {
     printError = (): string => {
         return 'Error: Required user data is missing. Please pass all the required data.';
     }
-
 }

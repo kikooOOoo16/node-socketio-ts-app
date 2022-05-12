@@ -6,6 +6,7 @@ export interface Room {
     author: Schema.Types.ObjectId;
     name: string;
     description: string;
-    usersInRoom?: Schema.Types.ObjectId[];
+    usersInRoom: Schema.Types.ObjectId[];
+    bannedUsersFromRoom: Schema.Types.ObjectId[];
     chatHistory?: Message[];
 }

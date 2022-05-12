@@ -10,5 +10,4 @@ export class UserNameTaken extends CustomException {
     printError = (): string => {
         return 'Error: That username is already taken.';
     }
-
 }

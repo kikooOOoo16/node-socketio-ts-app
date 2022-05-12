@@ -10,5 +10,4 @@ export class ExpiredUserToken extends CustomException {
     printError = (): string => {
         return 'Error: User token has expired.';
     }
-
 }

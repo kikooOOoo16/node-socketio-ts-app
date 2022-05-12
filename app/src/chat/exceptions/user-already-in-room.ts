@@ -10,5 +10,4 @@ export class UserAlreadyInRoom extends CustomException {
     printError = (): string => {
         return 'Error: The user is already in the room.';
     }
-
 }

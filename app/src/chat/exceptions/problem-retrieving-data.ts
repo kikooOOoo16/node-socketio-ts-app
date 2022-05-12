@@ -10,5 +10,4 @@ export class ProblemRetrievingData extends CustomException {
     printError = (): string => {
         return 'Error: There was a problem retrieving the requested data.';
     }
-
 }

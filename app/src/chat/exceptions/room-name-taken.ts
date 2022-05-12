@@ -10,5 +10,4 @@ export class RoomNameTaken extends CustomException {
     printError = (): string => {
         return 'Error: That room name already exists, please choose a different one.';
     }
-
 }

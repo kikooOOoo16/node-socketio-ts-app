@@ -10,5 +10,4 @@ export class UserNotInRoom extends CustomException {
     printError = (): string => {
         return 'Error: The requested user is not in the current room.';
     }
-
 }

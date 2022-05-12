@@ -10,5 +10,4 @@ export class ProfaneLanguageNotAllowed extends CustomException {
     printError = (): string => {
         return 'Error: Profane language is not allowed!';
     }
-
 }

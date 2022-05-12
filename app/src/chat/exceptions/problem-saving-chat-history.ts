@@ -10,5 +10,4 @@ export class ProblemSavingChatHistory extends CustomException {
     printError = (): string => {
         return 'Error: There was a problem saving the chat history.';
     }
-
 }

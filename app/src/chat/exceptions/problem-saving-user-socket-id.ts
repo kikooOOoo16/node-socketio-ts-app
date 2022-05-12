@@ -10,5 +10,4 @@ export class ProblemSavingUserSocketId extends CustomException {
     printError = (): string => {
         return 'Error: There was a problem saving the users\'s socketID to the DB.';
     }
-
 }
