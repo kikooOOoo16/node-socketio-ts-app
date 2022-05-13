@@ -2,8 +2,8 @@ import * as jwt from 'jsonwebtoken';
 import {NextFunction, Request, Response} from 'express';
 import {User} from "../db/models/user";
 import {UserTokenPayload} from "../interfaces/userTokenPayload";
-import {UsersService} from "../chat/users-service";
 import Logger from "../logger/logger";
+import {RoomsService} from "../chat/rooms-service";
 
 // check authentication middleware
 const auth = async (req: Request, res: Response, next: NextFunction) => {
@@ -39,8 +39,9 @@ const auth = async (req: Request, res: Response, next: NextFunction) => {
 
                     exceptionMsg = 'Token has expired.';
 
+                    const payload = jwt.verify(token, process.env.JWT_SECRET, {ignoreExpiration: true}) as UserTokenPayload;
                     // handle remove user from room
-                    await UsersService.getInstance().verifyUserTokenFetchUser(token!);
+                    await RoomsService.getInstance().removeUserFromAllRooms(payload._id);
                 }
             }
             // return unauthorized response code

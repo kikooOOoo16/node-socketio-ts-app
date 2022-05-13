@@ -260,6 +260,33 @@ export class RoomsService {
         await this.updateBannedUsersForRoom(room, bannedUsersFromRoom);
     }
 
+    removeUserFromAllRooms = async (userId: string) => {
+        // fetch All Rooms
+        const allRooms: Room[] = await RoomModel.find();
+
+        // check if user was in any room
+        allRoomsLoop:
+            for (const room of allRooms) {
+                // if usersInRoom array exists, check if user is in the room
+                if (room.usersInRoom && room.usersInRoom?.length > 0) {
+                    // iterate through user ids in room
+                    for (const id of room.usersInRoom) {
+                        Logger.debug(`users-service: removeUserFromAllRooms(): Comparing user id ${userId} with userID inside room ${String(id)}`);
+                        if (String(id) === userId) {
+                            // if found in room remove user
+                            Logger.debug(`users-service: removeUserFromAllRooms(): User with ${userId} found in room ${room.name}, removing user from room...`);
+                            room.usersInRoom = room.usersInRoom?.filter((id) => String(id) !== userId);
+                            Logger.debug(`users-service: removeUserFromAllRooms(): The updated usersInRoom array is ${[...room.usersInRoom]}`);
+                            // update list in db
+                            await RoomModel.findOneAndUpdate({name: room.name}, {'usersInRoom': room.usersInRoom});
+                            // break parent loop
+                            break allRoomsLoop;
+                        }
+                    }
+                }
+            }
+    }
+
     // edit chat history of certainRoom with new message and returned newly saved message in room
     saveChatHistory = async (room: RoomPopulatedUsers, chatMessage: Message): Promise<{ savedChatMessage: Message | undefined }> => {
         let newChatHistory: Message[];

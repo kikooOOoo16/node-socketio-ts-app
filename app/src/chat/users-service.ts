@@ -14,11 +14,14 @@ import {RoomCouldNotBeFoundException} from "./exceptions/room-related-exceptions
 import {UnauthorizedActionNotRoomAuthorException} from "./exceptions/user-related-exceptions/unauthorized-action-not-room-author-exception";
 import {ProblemUpdatingRoomException} from "./exceptions/room-related-exceptions/problem-updating-room-exception";
 import {ProblemSavingUserSocketIdException} from "./exceptions/user-related-exceptions/problem-saving-user-socket-id-exception";
+import {RoomsService} from "./rooms-service";
 
 export class UsersService {
     private static instance: UsersService;
+    private roomsService: RoomsService;
 
     private constructor() {
+        this.roomsService = RoomsService.getInstance();
     }
 
     public static getInstance(): UsersService {
@@ -82,7 +85,7 @@ export class UsersService {
                     const payload = jwt.verify(token, process.env.JWT_SECRET, {ignoreExpiration: true}) as UserTokenPayload;
 
                     Logger.debug('UsersService: verifyUserToken: Token expired, removeUserFromAllRooms() triggered.');
-                    await this.removeUserFromAllRooms(payload._id);
+                    await this.roomsService.removeUserFromAllRooms(payload._id);
 
                     throw new ExpiredUserTokenException();
                 }
@@ -97,33 +100,6 @@ export class UsersService {
         Logger.debug(`users-service: verifyUserTokenFetchUser: Successfully verified token, and returning user name = ${currentUser!.name}`);
 
         return {currentUser};
-    }
-
-    removeUserFromAllRooms = async (userId: string) => {
-        // fetch All Rooms
-        const allRooms: Room[] = await RoomModel.find();
-
-        // check if user was in any room
-        allRoomsLoop:
-            for (const room of allRooms) {
-                // if usersInRoom array exists, check if user is in the room
-                if (room.usersInRoom && room.usersInRoom?.length > 0) {
-                    // iterate through user ids in room
-                    for (const id of room.usersInRoom) {
-                        Logger.debug(`users-service: removeUserFromAllRooms(): Comparing user id ${userId} with userID inside room ${String(id)}`);
-                        if (String(id) === userId) {
-                            // if found in room remove user
-                            Logger.debug(`users-service: removeUserFromAllRooms(): User with ${userId} found in room ${room.name}, removing user from room...`);
-                            room.usersInRoom = room.usersInRoom?.filter((id) => String(id) !== userId);
-                            Logger.debug(`users-service: removeUserFromAllRooms(): The updated usersInRoom array is ${[...room.usersInRoom]}`);
-                            // update list in db
-                            await RoomModel.findOneAndUpdate({name: room.name}, {'usersInRoom': room.usersInRoom});
-                            // break parent loop
-                            break allRoomsLoop;
-                        }
-                    }
-                }
-            }
     }
 
     checkUserRoomOwnershipById = async (roomAuthorId: Schema.Types.ObjectId, userId: Schema.Types.ObjectId | string) => {
