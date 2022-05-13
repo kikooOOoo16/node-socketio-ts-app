@@ -4,9 +4,6 @@ import {User} from "../interfaces/user";
 export class MessageGeneratorService {
     private static instance: MessageGeneratorService;
 
-    private constructor() {
-    }
-
     public static getInstance(): MessageGeneratorService {
         if (!MessageGeneratorService.instance) {
             MessageGeneratorService.instance = new MessageGeneratorService();
@@ -15,20 +12,12 @@ export class MessageGeneratorService {
     }
 
     public generateMessage = (user: User | undefined, msgText: string): Message => {
-        let author;
         const createdAtUnixTime = new Date().getTime();
 
-        //if no user was passed generate message as ADMIN else generate using user data
-        if (!user) {
-            author = {
-                id: '',
-                name: 'Server'
-            }
-        } else {
-            author = {
-                id: user._id,
-                name: user.name
-            }
+        //if no user was passed the message is being sent by the Server
+        const author = {
+            id: user ? user._id : '',
+            name: user ? user.name : 'SERVER'
         }
 
         return {

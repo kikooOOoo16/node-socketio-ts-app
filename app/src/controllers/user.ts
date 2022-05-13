@@ -1,9 +1,10 @@
 import {Request, Response} from "express";
 import {User as UserModel} from "../db/models/user";
-import {UserNameTaken} from "../chat/exceptions/user-name-taken";
+import {UserNameOrEmailTaken} from "../chat/exceptions/user-name-or-email-taken";
 import Logger from "../logger/logger";
 
 const signUp = async (req: Request, res: Response) => {
+    const ALREADY_CREATED = 'E11000';
     const user = new UserModel(req.body);
     try {
         await user.save();
@@ -16,7 +17,7 @@ const signUp = async (req: Request, res: Response) => {
         res
             .cookie('access_token', token, {
                 httpOnly: true,
-                maxAge: 11100000,
+                maxAge: 10900000,
                 secure: process.env.NODE_ENV === 'production'
             })
             .status(201).json({
@@ -25,17 +26,14 @@ const signUp = async (req: Request, res: Response) => {
             expiresIn: 10800
         });
     } catch (err) {
-        if (err instanceof Error) {
-            if (err.message.split(' ')[0] === 'E11000') {
-                err.message = new UserNameTaken().printError();
-            }
+        if (err instanceof Error && err.message.split(' ')[0] === ALREADY_CREATED) {
 
+            err.message = new UserNameOrEmailTaken().printError();
             Logger.warn(`Controllers: signUp: Problem creating new user for: ${user.name}.`);
 
             res.status(400).json({
                 message: err.message
             });
-
         }
     }
 }
@@ -64,7 +62,6 @@ const signIn = async (req: Request, res: Response) => {
     } catch ({message}) {
 
         Logger.warn(`Controllers: signIn: Problem signing in user with err message: ${message}.`);
-
         res.status(400).json({
             message
         });
@@ -73,12 +70,6 @@ const signIn = async (req: Request, res: Response) => {
 
 const logout = async (req: Request, res: Response) => {
     try {
-        // filter user tokens that aren't equal to req token
-        req.user!.tokens = req.user!.tokens!.filter((token: any) => token.token !== req.token);
-
-        // save user data without current req token
-        await req.user!.save();
-
         // clear user cookies
         res.clearCookie('access_token')
 
@@ -98,30 +89,6 @@ const logout = async (req: Request, res: Response) => {
     }
 }
 
-const logoutAll = async (req: Request, res: Response) => {
-    try {
-        // empty user's tokens array
-        req.user!.tokens = [];
-        await req.user!.save();
-
-        Logger.debug(`Controllers: logoutAll: User logged out of all sessions: ${req.user?.name}.`);
-
-        res.status(200).json({
-            message: 'User logged out from all sessions.'
-        });
-    } catch (e) {
-
-        if (e instanceof Error) {
-            Logger.warn(`Controllers: logoutAll: Problem logging out user from all sessions with err message: ${e.message}.`);
-        }
-
-
-        res.status(500).json({
-            message: 'Error: User logout failed.'
-        });
-    }
-}
-
 const userProfile = async (req: Request, res: Response) => {
     try {
         Logger.debug(`Controllers: userProfile: User profile retrieved for user: ${req.user?.name}.`);
@@ -137,4 +104,4 @@ const userProfile = async (req: Request, res: Response) => {
     }
 }
 
-export {signIn, signUp, logout, logoutAll, userProfile}
+export {signIn, signUp, logout, userProfile}

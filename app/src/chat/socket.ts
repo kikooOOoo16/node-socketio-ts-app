@@ -10,7 +10,7 @@ import {UsersService} from "./users-service";
 import {Message} from "../interfaces/message";
 import {User} from "../interfaces/user";
 import {ExceptionFactory} from "./exceptions/exception-factory";
-import {customExceptionType} from "./exceptions/custom-exception-type";
+import {CustomExceptionType} from "./exceptions/custom-exception-type";
 import {CustomException} from "./exceptions/custom-exception";
 import {UserTokenPayload} from "../interfaces/userTokenPayload";
 import {RoomPopulatedUsers} from "../interfaces/roomPopulatedUsers";
@@ -44,11 +44,11 @@ export const socket = (server: http.Server) => {
             } catch (err) {
                 if (err instanceof Error) {
                     Logger.warn(`Socket: AuthMiddleware: Failed to validate user auth header with err message ${err.message}`);
-                    customException = ExceptionFactory.createException(customExceptionType.UNAUTHORIZED_ACTION);
+                    customException = ExceptionFactory.createException(CustomExceptionType.UNAUTHORIZED_ACTION);
                     // check if user token expired
                     if (err.name === 'TokenExpiredError') {
                         Logger.warn('ExpressMiddleware: TokenExpiredErr caught, cleanup user state using token from cookie.');
-                        customException = ExceptionFactory.createException(customExceptionType.EXPIRED_USER_TOKEN);
+                        customException = ExceptionFactory.createException(CustomExceptionType.EXPIRED_USER_TOKEN);
                         // handle remove user from room and remove user's expired token
                         await usersServiceSingleton.verifyUserTokenFetchUser(token!);
                     }
@@ -69,7 +69,7 @@ export const socket = (server: http.Server) => {
         } else {
             // no cookie present on socketIO connection request
             Logger.warn(`Socket: io.use: Problem authenticating user, no cookie provided socket.handshake.headers.cookie = ${socket.handshake.headers.cookie}.`);
-            const customException: CustomException = ExceptionFactory.createException(customExceptionType.UNAUTHORIZED_ACTION);
+            const customException: CustomException = ExceptionFactory.createException(CustomExceptionType.UNAUTHORIZED_ACTION);
             next(new Error(customException.printError()));
         }
     }));
@@ -448,7 +448,7 @@ export const socket = (server: http.Server) => {
             let customException: CustomException;
             // check if proper message was sent
             if (!message || message.trim() === '') {
-                customException = ExceptionFactory.createException(customExceptionType.INVALID_MESSAGE_SENT);
+                customException = ExceptionFactory.createException(CustomExceptionType.INVALID_MESSAGE_SENT);
                 return callback(customException.printError());
             }
 
@@ -457,7 +457,7 @@ export const socket = (server: http.Server) => {
 
             if (badWordsFilter.isProfane(message)) {
                 Logger.debug(`Socket.ts: socket.on sendMessage: Profane language check triggered in room ${roomName}.`);
-                customException = ExceptionFactory.createException(customExceptionType.PROFANE_LANGUAGE_NOT_ALLOWED);
+                customException = ExceptionFactory.createException(CustomExceptionType.PROFANE_LANGUAGE_NOT_ALLOWED);
                 const badWordsErr = customException.printError();
                 return callback(badWordsErr);
             }
@@ -491,7 +491,7 @@ export const socket = (server: http.Server) => {
             let customException: CustomException;
             // check if proper message was sent
             if (!editedMessage || editedMessage.text.trim() === '' || !editedMessage._id) {
-                customException = ExceptionFactory.createException(customExceptionType.INVALID_MESSAGE_SENT);
+                customException = ExceptionFactory.createException(CustomExceptionType.INVALID_MESSAGE_SENT);
                 return callback(customException.printError());
             }
 
@@ -597,7 +597,7 @@ const removeSocketFromRoom = (io: Server, user: User, roomName: string, kickOrBa
     } else {
         // if there was no socketId for the given user return an err
         Logger.error(`Socket: removeSocketFromRoom(): Problem removing user from SocketIO room with socketID ${user!.socketId} roomName= ${roomName}`);
-        const customException = ExceptionFactory.createException(customExceptionType.PROBLEM_REMOVING_SOCKET_FROM_SOCKET_IO_ROOM);
+        const customException = ExceptionFactory.createException(CustomExceptionType.PROBLEM_REMOVING_SOCKET_FROM_SOCKET_IO_ROOM);
         err = customException.printError();
         return {err};
     }

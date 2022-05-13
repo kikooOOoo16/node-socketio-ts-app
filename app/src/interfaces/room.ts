@@ -2,6 +2,7 @@ import {Schema} from "mongoose";
 import {Message} from "./message";
 
 export interface Room {
+
     _id: Schema.Types.ObjectId;
     author: Schema.Types.ObjectId;
     name: string;

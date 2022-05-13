@@ -35,17 +35,8 @@ const userSchema: Schema = new Schema({
             }
         }
     },
-    tokens: [
-        {
-            token: {
-                type: String,
-                required: true
-            }
-        }
-    ],
     socketId: {
-        type: String,
-        unique: true
+        type: String
     }
 }, {
     timestamps: true
@@ -62,14 +53,8 @@ userSchema.virtual('userRooms', {
 // don't use arrow function because 'this' will point to global
 userSchema.methods.generateAuthToken = async function () {
     const user = this;
-    const token = jwt.sign({_id: user._id.toString()}, process.env.JWT_SECRET, {expiresIn: '3h'});
-
-    // save user token to DB
-    user.tokens = user.tokens.concat({token});
-    await user.save();
-
     // return user token
-    return token;
+    return jwt.sign({_id: user._id.toString()}, process.env.JWT_SECRET, {expiresIn: '3h'});
 }
 
 // return object with only the necessary user data
@@ -81,7 +66,6 @@ userSchema.methods.toJSON = function () {
 
     // delete password and tokens fields
     delete userObject.password;
-    delete userObject.tokens;
 
     // return optimized user obj
     return userObject;

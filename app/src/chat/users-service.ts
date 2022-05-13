@@ -6,7 +6,7 @@ import {Room} from "../interfaces/room";
 import {Message} from "../interfaces/message";
 import {User as UserModel} from "../db/models/user";
 import {Room as RoomModel} from "../db/models/room";
-import {customExceptionType} from "./exceptions/custom-exception-type";
+import {CustomExceptionType} from "./exceptions/custom-exception-type";
 import {CustomException} from "./exceptions/custom-exception";
 import {ExceptionFactory} from "./exceptions/exception-factory";
 import {Schema} from "mongoose";
@@ -36,7 +36,7 @@ export class UsersService {
         } catch (e) {
             // handle error
             Logger.error(`users-service: saveUsersSocketID: failed saving user's socket id with err ${e.message}`);
-            this.customException = ExceptionFactory.createException(customExceptionType.PROBLEM_SAVING_USER_SOCKET_ID);
+            this.customException = ExceptionFactory.createException(CustomExceptionType.PROBLEM_SAVING_USER_SOCKET_ID);
             err = this.customException.printError();
             return {err};
         }
@@ -49,11 +49,11 @@ export class UsersService {
 
         try {
             // update user in DB with new socketId
-            await UserModel.findByIdAndUpdate(userId, {socketId: ''});
+            await UserModel.findByIdAndUpdate(userId, {socketId: null});
         } catch (e) {
             // handle error
             Logger.error(`users-service: saveUsersSocketID: failed saving user's socket id with err ${e.message}`);
-            this.customException = ExceptionFactory.createException(customExceptionType.PROBLEM_SAVING_USER_SOCKET_ID);
+            this.customException = ExceptionFactory.createException(CustomExceptionType.PROBLEM_SAVING_USER_SOCKET_ID);
             err = this.customException.printError();
             return {err};
         }
@@ -70,7 +70,7 @@ export class UsersService {
         if (!user) {
             Logger.warn(`Couldn't find user in db with provided userId= ${userId}`);
             // get customException type from exceptionFactory and return unauthorizedAction error
-            this.customException = ExceptionFactory.createException(customExceptionType.UNAUTHORIZED_ACTION);
+            this.customException = ExceptionFactory.createException(CustomExceptionType.UNAUTHORIZED_ACTION);
             err = this.customException.printError();
             return {err, user: undefined};
         }
@@ -80,53 +80,48 @@ export class UsersService {
     }
 
     verifyUserTokenFetchUser = async (token: string): Promise<{ currentUser: User | undefined, err: string }> => {
-        let verifyUserErr = '';
+        let err = '';
         let decodedToken;
 
         try {
             // check user auth with token in request
             decodedToken = (jwt.verify(token, process.env.JWT_SECRET)) as UserTokenPayload;
-        } catch (err) {
-            if (err instanceof Error) {
-                // catch token error and return err message
-                Logger.warn(`UsersService: verifyUserToken: Token verify failed with err: ${err.message}.`);
-                // check if token expired
-                if (err.name === 'TokenExpiredError') {
+        } catch (e) {
+            if (e instanceof Error) {
+
+                Logger.warn(`UsersService: verifyUserToken: Token verify failed with err: ${e.message}.`);
+
+                if (e.name === 'TokenExpiredError') {
                     // remove user if he is inside a chat room
                     const payload = jwt.verify(token, process.env.JWT_SECRET, {ignoreExpiration: true}) as UserTokenPayload;
+
                     Logger.debug('UsersService: verifyUserToken: Token expired, removeUserFromAllRooms() triggered.');
                     await this.removeUserFromAllRooms(payload._id);
 
-                    Logger.debug('UsersService: verifyUserToken: Token expired, removeUserExpiredToken() triggered.');
-                    // remove token from user obj in DB
-                    await this.removeUserExpiredToken(payload._id, token);
-
                     // return token expired error
-                    this.customException = ExceptionFactory.createException(customExceptionType.EXPIRED_USER_TOKEN);
-                    verifyUserErr = this.customException.printError();
-                    return {currentUser: undefined, err: verifyUserErr};
+                    this.customException = ExceptionFactory.createException(CustomExceptionType.EXPIRED_USER_TOKEN);
+                    err = this.customException.printError();
+
+                    return {currentUser: undefined, err};
                 }
             }
 
             // if token hasn't expired then no token provided, send general unauthorized action error
-            this.customException = ExceptionFactory.createException(customExceptionType.UNAUTHORIZED_ACTION);
-            verifyUserErr = this.customException.printError();
-            return {currentUser: undefined, err: verifyUserErr};
+            this.customException = ExceptionFactory.createException(CustomExceptionType.UNAUTHORIZED_ACTION);
+            err = this.customException.printError();
+            return {currentUser: undefined, err};
         }
 
-        // find user by using the _id from the token
-        const currentUser: User | null = await UserModel.findOne({_id: decodedToken._id, 'tokens.token': token});
-        // check if currentUser was found
-        if (!currentUser) {
-            Logger.warn(`Couldn't find user in db with provided token and userId= ${decodedToken._id}`);
-            // get customException type from exceptionFactory and return unauthorizedAction error
-            this.customException = ExceptionFactory.createException(customExceptionType.UNAUTHORIZED_ACTION);
-            verifyUserErr = this.customException.printError();
-            return {currentUser: undefined, err: verifyUserErr};
+        const {err: fetchUserErr, user: currentUser} = await this.fetchUserById(decodedToken._id);
+
+        if (fetchUserErr !== '') {
+            err = fetchUserErr;
+            return {currentUser: undefined, err};
         }
-        Logger.debug(`users-service: verifyUserTokenFetchUser: Successfully verified token, and returning user name = ${currentUser.name}`);
-        // if all is good return currentUser
-        return {currentUser, err: verifyUserErr};
+
+        Logger.debug(`users-service: verifyUserTokenFetchUser: Successfully verified token, and returning user name = ${currentUser!.name}`);
+
+        return {currentUser, err: err};
     }
 
     removeUserFromAllRooms = async (userId: string) => {
@@ -161,7 +156,7 @@ export class UsersService {
         let isUserInRoomErr = '';
         // check if there are any users in room
         if (!room.usersInRoom || room.usersInRoom.length === 0) {
-            this.customException = ExceptionFactory.createException(customExceptionType.USER_NOT_IN_ROOM);
+            this.customException = ExceptionFactory.createException(CustomExceptionType.USER_NOT_IN_ROOM);
             isUserInRoomErr = this.customException.printError();
             return {isUserInRoomErr};
         }
@@ -175,7 +170,7 @@ export class UsersService {
 
         // check if user was found or not
         if (!userInRoom) {
-            this.customException = ExceptionFactory.createException(customExceptionType.USER_NOT_IN_ROOM);
+            this.customException = ExceptionFactory.createException(CustomExceptionType.USER_NOT_IN_ROOM);
             isUserInRoomErr = this.customException.printError();
         }
 
@@ -183,31 +178,12 @@ export class UsersService {
         return {isUserInRoomErr}
     }
 
-    // this should never fail therefor no returned error needed
-    private removeUserExpiredToken = async (_id: string, token: string) => {
-
-        const currentUser: User | null = await UserModel.findById(_id);
-
-        if (!currentUser) {
-            Logger.debug(`UsersService: removeUserExpiredToken(): no user was found for the id ${_id}`);
-            return;
-        }
-
-        // filter user tokens that aren't equal to expired token
-        currentUser.tokens = currentUser.tokens?.filter((tokenObj: any) => tokenObj.token !== token);
-
-        // save user data without current req token
-        await currentUser?.save();
-
-        Logger.debug(`UsersService: removeUserExpiredToken(): Removed user's expired token and saved new user state to DB for userID= ${_id}`);
-    }
-
     checkUserRoomOwnershipById = async (roomAuthorId: Schema.Types.ObjectId, userId: Schema.Types.ObjectId | string): Promise<{ err: string }> => {
         let err = '';
         // check if current user is the author/admin of the room
         if (String(roomAuthorId) !== String(userId)) {
             Logger.warn(`users-service: checkUserRoomOwnershipById(): Unauthorized action err: The currentUser ${String(userId)} is not the rooms author = ${String(roomAuthorId)}`)
-            this.customException = ExceptionFactory.createException(customExceptionType.UNAUTHORIZED_ACTION_NOT_ROOM_AUTHOR);
+            this.customException = ExceptionFactory.createException(CustomExceptionType.UNAUTHORIZED_ACTION_NOT_ROOM_AUTHOR);
             err = this.customException.printError();
             return {err};
         }
@@ -229,7 +205,7 @@ export class UsersService {
         }
 
         if (!foundRoom) {
-            this.customException = ExceptionFactory.createException(customExceptionType.INVALID_ROOM_QUERY);
+            this.customException = ExceptionFactory.createException(CustomExceptionType.INVALID_ROOM_QUERY);
             err = this.customException.printError();
             return {err, foundRoom: undefined}
         }
@@ -237,7 +213,7 @@ export class UsersService {
         // check if request user is the same as room author
         if (String(foundRoom?.author) !== String(_id)) {
             // if is not authenticated return unauthorizedAction err
-            this.customException = ExceptionFactory.createException(customExceptionType.UNAUTHORIZED_ACTION);
+            this.customException = ExceptionFactory.createException(CustomExceptionType.UNAUTHORIZED_ACTION);
             err = this.customException.printError();
             return {err, foundRoom: undefined}
         }
@@ -253,7 +229,7 @@ export class UsersService {
 
         if (String(editedMessage.author.id) !== userId) {
             Logger.warn(`users-service: checkIfMessageBelongsToUser(): Edit message failed for userId ${userId} and message author id ${String(editedMessage.author.id)}`);
-            this.customException = ExceptionFactory.createException(customExceptionType.UNAUTHORIZED_ACTION);
+            this.customException = ExceptionFactory.createException(CustomExceptionType.UNAUTHORIZED_ACTION);
             err = this.customException.printError();
             return {checkIfMessageBelongsToUserErr: err}
         }
@@ -290,12 +266,12 @@ export class UsersService {
                 // else updatedRoom is null so update failed return error
             } else {
                 Logger.warn(`users-service: editUserMessage(): Problem updating room's chat history. Update result updateRoom = ${updatedRoom}, possible that the required room name= ${room.name} was not found.`);
-                this.customException = ExceptionFactory.createException(customExceptionType.PROBLEM_UPDATING_ROOM);
+                this.customException = ExceptionFactory.createException(CustomExceptionType.PROBLEM_UPDATING_ROOM);
                 return {err, updatedRoom: undefined}
             }
         } catch (e) {
             Logger.warn(`users-service: editUserMessage(): Problem updating room's chat history. Err message = ${e.message}`);
-            this.customException = ExceptionFactory.createException(customExceptionType.PROBLEM_UPDATING_ROOM);
+            this.customException = ExceptionFactory.createException(CustomExceptionType.PROBLEM_UPDATING_ROOM);
             err = this.customException.printError();
             return {err, updatedRoom: undefined}
         }

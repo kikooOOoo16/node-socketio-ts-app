@@ -20,7 +20,7 @@ app.use(cookieParser())
 
 // Allow CORS communication
 app.use((req, res, next) => {
-    res.setHeader('Access-Control-Allow-Origin', 'http://localhost:4200');
+    res.setHeader('Access-Control-Allow-Origin', process.env.NG_APP_URL);
     res.setHeader('Access-Control-Allow-Credentials', 'true');
     res.setHeader(
         'Access-Control-Allow-Headers',

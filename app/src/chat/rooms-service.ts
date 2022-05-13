@@ -2,7 +2,7 @@ import {Room} from "../interfaces/room";
 import {User} from "../interfaces/user";
 import {Room as RoomModel} from "../db/models/room";
 import {ExceptionFactory} from "./exceptions/exception-factory";
-import {customExceptionType} from "./exceptions/custom-exception-type";
+import {CustomExceptionType} from "./exceptions/custom-exception-type";
 import {CustomException} from "./exceptions/custom-exception";
 import {Message} from "../interfaces/message";
 import {RoomPopulatedUsers} from "../interfaces/roomPopulatedUsers";
@@ -14,6 +14,7 @@ import {UsersService} from "./users-service";
 export class RoomsService {
     private static instance: RoomsService;
     private customException!: CustomException;
+    readonly ALREADY_CREATED = 'E11000';
 
     private constructor() {
     }
@@ -32,7 +33,7 @@ export class RoomsService {
         if (newRoom.name === '' || newRoom.description === '' || newRoom.description.length < 10) {
             Logger.warn(`RoomsService: Create Room: Room query data missing for room with name: ${newRoom.name}.`);
             // get customException type from exceptionFactory
-            this.customException = ExceptionFactory.createException(customExceptionType.ROOM_DATA_MISSING);
+            this.customException = ExceptionFactory.createException(CustomExceptionType.ROOM_DATA_MISSING);
             createRoomErr = this.customException.printError();
             return {roomName: undefined, createRoomErr};
         }
@@ -41,7 +42,7 @@ export class RoomsService {
         const badWordsFilter = new Filter();
 
         if (badWordsFilter.isProfane(newRoom.name) || badWordsFilter.isProfane(newRoom.description)) {
-            this.customException = ExceptionFactory.createException(customExceptionType.PROFANE_LANGUAGE_NOT_ALLOWED);
+            this.customException = ExceptionFactory.createException(CustomExceptionType.PROFANE_LANGUAGE_NOT_ALLOWED);
             const badWordsErr = this.customException.printError();
             return {roomName: undefined, createRoomErr: badWordsErr};
         }
@@ -62,14 +63,17 @@ export class RoomsService {
             // create new Room Mongoose model and save it to DB
             await new RoomModel({...newRoom}).save();
             Logger.debug(`RoomsService: Create Room: New room saved to DB. RoomName = ${newRoom.name}`);
+
         } catch (err) {
-            if (err instanceof Error) {
-                if (err.message.split(' ')[0] === 'E11000') {
-                    Logger.warn(`RoomsService: Create Room: Room name already taken exception triggered for name ${newRoom.name}.`);
-                    this.customException = ExceptionFactory.createException(customExceptionType.ROOM_NAME_TAKEN);
-                    createRoomErr = this.customException.printError();
-                    return {roomName: undefined, createRoomErr};
-                }
+            if (err instanceof Error && err.message.split(' ')[0] === this.ALREADY_CREATED) {
+
+                Logger.warn(`RoomsService: Create Room: Room name already taken exception triggered for name ${newRoom.name}.`);
+
+                this.customException = ExceptionFactory.createException(CustomExceptionType.ROOM_NAME_TAKEN);
+                createRoomErr = this.customException.printError();
+
+                return {roomName: undefined, createRoomErr};
+
             }
         }
         return {roomName: newRoom.name, createRoomErr};
@@ -83,7 +87,7 @@ export class RoomsService {
         const badWordsFilter = new Filter();
 
         if (badWordsFilter.isProfane(editedRoom.name) || badWordsFilter.isProfane(editedRoom.description)) {
-            this.customException = ExceptionFactory.createException(customExceptionType.PROFANE_LANGUAGE_NOT_ALLOWED);
+            this.customException = ExceptionFactory.createException(CustomExceptionType.PROFANE_LANGUAGE_NOT_ALLOWED);
             err = this.customException.printError();
             return {err};
         }
@@ -96,7 +100,7 @@ export class RoomsService {
             });
         } catch (e) {
             Logger.warn(`RoomsService: Edit Room: There was a problem updating the room ${foundRoom.name}.`);
-            this.customException = ExceptionFactory.createException(customExceptionType.PROBLEM_UPDATING_ROOM);
+            this.customException = ExceptionFactory.createException(CustomExceptionType.PROBLEM_UPDATING_ROOM);
             err = this.customException.printError();
             return {err};
         }
@@ -110,7 +114,7 @@ export class RoomsService {
             await RoomModel.findByIdAndDelete(roomId);
         } catch (e) {
             Logger.warn(`RoomsService: Delete Room: There was a problem deleting the room ${roomId}.`);
-            this.customException = ExceptionFactory.createException(customExceptionType.PROBLEM_DELETING_ROOM);
+            this.customException = ExceptionFactory.createException(CustomExceptionType.PROBLEM_DELETING_ROOM);
             err = this.customException.printError();
             return {err};
         }
@@ -126,7 +130,7 @@ export class RoomsService {
         if (!roomName || roomName === '') {
             // get customException type from exceptionFactory
             Logger.warn(`RoomsService: Fetch Room: Invalid room query for room name ${roomName}.`);
-            this.customException = ExceptionFactory.createException(customExceptionType.INVALID_ROOM_QUERY);
+            this.customException = ExceptionFactory.createException(CustomExceptionType.INVALID_ROOM_QUERY);
             err = this.customException.printError();
             return {room: undefined, err};
         }
@@ -141,7 +145,7 @@ export class RoomsService {
             });
         } catch (e) {
             Logger.warn(`RoomsService: Fetch Room: Problem retrieving room data with error message: ${e.message}.`);
-            this.customException = ExceptionFactory.createException(customExceptionType.PROBLEM_RETRIEVING_DATA);
+            this.customException = ExceptionFactory.createException(CustomExceptionType.PROBLEM_RETRIEVING_DATA);
             err = this.customException.printError();
             return {room: undefined, err};
         }
@@ -150,7 +154,7 @@ export class RoomsService {
         if (!foundRoom) {
             Logger.warn(`RoomsService: Fetch Room: no room found for room name ${roomName}.`);
             // get customException type from exceptionFactory
-            this.customException = ExceptionFactory.createException(customExceptionType.NO_SUCH_ROOM_EXISTS);
+            this.customException = ExceptionFactory.createException(CustomExceptionType.NO_SUCH_ROOM_EXISTS);
             err = this.customException.printError();
             return {room: undefined, err};
         }
@@ -169,7 +173,7 @@ export class RoomsService {
             allRooms = await RoomModel.find();
         } catch ({message}) {
             Logger.warn(`RoomsService: fetchAllRooms(): Problem retrieving all rooms with error: ${message}.`);
-            this.customException = ExceptionFactory.createException(customExceptionType.PROBLEM_RETRIEVING_DATA);
+            this.customException = ExceptionFactory.createException(CustomExceptionType.PROBLEM_RETRIEVING_DATA);
             err = this.customException.printError();
             return {allRooms: undefined, err};
         }
@@ -188,7 +192,7 @@ export class RoomsService {
             allUserRooms = await RoomModel.find({author: currentUser._id},).select('_id name description author createdAt');
         } catch ({message}) {
             Logger.warn(`RoomsService: Fetch All Room: Problem retrieving all user specific rooms with error: ${message}.`);
-            this.customException = ExceptionFactory.createException(customExceptionType.PROBLEM_RETRIEVING_DATA);
+            this.customException = ExceptionFactory.createException(CustomExceptionType.PROBLEM_RETRIEVING_DATA);
             err = this.customException.printError();
             return {allUserRooms: undefined, err};
         }
@@ -218,7 +222,7 @@ export class RoomsService {
             // if found user inside bannedUsers array return err
             if (foundBannedUser) {
                 Logger.warn(`rooms-service: joinRoom(): User name = ${currentUser.name} is banned from the room = ${room?.name}`);
-                this.customException = ExceptionFactory.createException(customExceptionType.USER_BANNED_FROM_ROOM);
+                this.customException = ExceptionFactory.createException(CustomExceptionType.USER_BANNED_FROM_ROOM);
                 err = this.customException.printError();
                 return {err};
             }
@@ -233,20 +237,18 @@ export class RoomsService {
         // check if the user is in the current room
         const {err: checkIfUserInRoomErr, userIsInRoom} = this.checkIfUserIsInRoom(usersInRoom, currentUser.id, roomName);
         Logger.warn(`rooms-service: joinRoom(): checkIfUserIsInRoom() returned err = ${checkIfUserInRoomErr} and usersIsInRoom = ${userIsInRoom}`);
-        // if the user is already in the room return err message
+
         if (userIsInRoom) {
             err = checkIfUserInRoomErr;
             return {err};
         }
 
-        // if all check passed add user to room's users array
         // @ts-ignore actually want to add only id
         usersInRoom?.push(currentUser._id);
         Logger.debug(`RoomsService: JoinRoom: Added user ${currentUser.name} to room array.`);
 
-        // if all goes well update room in DB with new usersInRoom array
         const {err: updateUsersInRoomErr} = await this.updateUsersInRoom(room!.name, usersInRoom!);
-        // check if usersInRoom were updated
+
         if (updateUsersInRoomErr !== '') {
             err = updateUsersInRoomErr;
             return {err};
@@ -357,13 +359,13 @@ export class RoomsService {
                 newlySavedMessage = updatedRoom.chatHistory[updatedRoom.chatHistory.length - 1];
             } else {
                 Logger.warn(`Failed to update room ${room.name} with a result of ${newlySavedMessage}`);
-                this.customException = ExceptionFactory.createException(customExceptionType.PROBLEM_SAVING_CHAT_HISTORY);
+                this.customException = ExceptionFactory.createException(CustomExceptionType.PROBLEM_SAVING_CHAT_HISTORY);
                 saveChatError = this.customException.printError();
                 return {err: saveChatError, savedChatMessage: undefined};
             }
         } catch (err) {
             Logger.debug(`RoomsService: SaveChatHistory: Failed to find and update chat history for room name ${room.name}`);
-            this.customException = ExceptionFactory.createException(customExceptionType.PROBLEM_SAVING_CHAT_HISTORY);
+            this.customException = ExceptionFactory.createException(CustomExceptionType.PROBLEM_SAVING_CHAT_HISTORY);
             saveChatError = this.customException.printError();
             return {err: saveChatError, savedChatMessage: undefined};
         }
@@ -383,14 +385,14 @@ export class RoomsService {
             if (!foundUser) {
                 Logger.debug(`RoomsService: checkIfUserIsInRoom(): No user was found in the room= ${roomName} with the userId=  ${userId}.`);
                 // get customException type from exceptionFactory
-                this.customException = ExceptionFactory.createException(customExceptionType.USER_NOT_IN_ROOM);
+                this.customException = ExceptionFactory.createException(CustomExceptionType.USER_NOT_IN_ROOM);
                 err = this.customException.printError();
                 userIsInRoom = false;
                 return {err, userIsInRoom}
             } else {
                 Logger.debug(`RoomsService: checkIfUserIsInRoom(): User name=  ${foundUser?.name} is definitely in the room= ${roomName}.`);
                 // ser user already in room err message
-                this.customException = ExceptionFactory.createException(customExceptionType.USER_ALREADY_IN_ROOM);
+                this.customException = ExceptionFactory.createException(CustomExceptionType.USER_ALREADY_IN_ROOM);
                 err = this.customException.printError();
                 // user was found return true
                 userIsInRoom = true;
@@ -399,7 +401,7 @@ export class RoomsService {
         } else {
             Logger.debug(`RoomsService: checkIfUserIsInRoom(): The room= ${roomName} has no users in it.`);
             // there are no users in the room so the user can't be in it
-            this.customException = ExceptionFactory.createException(customExceptionType.USER_NOT_IN_ROOM);
+            this.customException = ExceptionFactory.createException(CustomExceptionType.USER_NOT_IN_ROOM);
             err = this.customException.printError();
             return {err, userIsInRoom};
         }
@@ -417,7 +419,7 @@ export class RoomsService {
             // ts compiler error if no type assertion here
             if (e instanceof Error) {
                 Logger.warn(`RoomsService: checkIfRoomNameExists: Failed to retrieve room data for room name ${name} with error message: ${e.message}`);
-                this.customException = ExceptionFactory.createException(customExceptionType.PROBLEM_RETRIEVING_DATA);
+                this.customException = ExceptionFactory.createException(CustomExceptionType.PROBLEM_RETRIEVING_DATA);
                 err = this.customException.printError();
                 return {err};
             }
@@ -427,7 +429,7 @@ export class RoomsService {
 
         // check if room was found
         if (foundRoom) {
-            this.customException = ExceptionFactory.createException(customExceptionType.ROOM_NAME_TAKEN);
+            this.customException = ExceptionFactory.createException(CustomExceptionType.ROOM_NAME_TAKEN);
             err = this.customException.printError();
             return {err};
         }
@@ -442,7 +444,7 @@ export class RoomsService {
             Logger.debug(`rooms-service: updateUsersInRoom(): Saved the updated users list for room with name ${roomName} to the DB.`);
         } catch ({message}) {
             Logger.warn(`rooms-service: updateUsersInRoom(): Failed to find and update users list for room with name ${roomName}. Fail message ${message}`);
-            this.customException = ExceptionFactory.createException(customExceptionType.PROBLEM_ADDING_USER_TO_ROOM);
+            this.customException = ExceptionFactory.createException(CustomExceptionType.PROBLEM_ADDING_USER_TO_ROOM);
             err = this.customException.printError();
             return {err};
         }
@@ -457,7 +459,7 @@ export class RoomsService {
             await RoomModel.findOneAndUpdate({name: room.name}, {'bannedUsersFromRoom': bannedUsersFromRoom});
         } catch (e) {
             Logger.warn(`rooms-service: updateBannedUsersForRoom(): Failed updating the room's banned users list with error = ${e.message}`);
-            this.customException = ExceptionFactory.createException(customExceptionType.PROBLEM_UPDATING_ROOMS_BANNED_USERS);
+            this.customException = ExceptionFactory.createException(CustomExceptionType.PROBLEM_UPDATING_ROOMS_BANNED_USERS);
             err = this.customException.printError();
             return {err};
         }

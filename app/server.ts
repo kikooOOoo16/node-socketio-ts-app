@@ -14,14 +14,14 @@ const normalizePort = (val: string | number) => {
         //  port num
         return port;
     }
-    return false;
+    // return false;
 }
 
 const onError = (error: { syscall: string; code: any; }) => {
     if (error.syscall !== 'listen') {
         throw error;
     }
-    let addr;
+    const addr = server.address();
     const bind = typeof addr === 'string' ? 'pipe' + addr : 'port' + port;
     switch (error.code) {
         case 'EACCES':
