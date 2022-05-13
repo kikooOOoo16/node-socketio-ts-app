@@ -9,11 +9,16 @@ import {MessageGeneratorService} from "./message-generator-service";
 import {UsersService} from "./users-service";
 import {Message} from "../interfaces/message";
 import {User} from "../interfaces/user";
-import {ExceptionFactory} from "./exceptions/exception-factory";
-import {CustomExceptionType} from "./exceptions/custom-exception-type";
-import {CustomException} from "./exceptions/custom-exception";
 import {UserTokenPayload} from "../interfaces/userTokenPayload";
 import {RoomPopulatedUsers} from "../interfaces/roomPopulatedUsers";
+import {ExpiredUserTokenException} from "./exceptions/user-related-exceptions/expired-user-token-exception";
+import {UnauthorizedActionException} from "./exceptions/user-related-exceptions/unauthorized-action-exception";
+
+import {abstractExceptionHandler} from './exceptions/abstract-exception-handler'
+import {ProblemRemovingSocketFromSocketIORoomException} from "./exceptions/room-related-exceptions/problem-removing-socket-from-socket-i-o-room-exception";
+import {InvalidMessageQueryDataException} from "./exceptions/message-related-exceptions/invalid-message-query-data-exception";
+import {ProfaneLanguageNotAllowedException} from "./exceptions/general-exceptions/profane-language-not-allowed-exception";
+import {UserNotInRoomException} from "./exceptions/user-related-exceptions/user-not-in-room-exception";
 
 export const socket = (server: http.Server) => {
     const io = new Server(server, {
@@ -34,7 +39,6 @@ export const socket = (server: http.Server) => {
         // check if socket auth payload is present
         if (socket.handshake.headers.cookie) {
             let userId: UserTokenPayload;
-            let customException: CustomException;
             // get token value from cookie, token is stored as access_token=token-value string
             const token = socket.handshake.headers.cookie?.split('=')[1];
 
@@ -44,23 +48,20 @@ export const socket = (server: http.Server) => {
             } catch (err) {
                 if (err instanceof Error) {
                     Logger.warn(`Socket: AuthMiddleware: Failed to validate user auth header with err message ${err.message}`);
-                    customException = ExceptionFactory.createException(CustomExceptionType.UNAUTHORIZED_ACTION);
+
                     // check if user token expired
                     if (err.name === 'TokenExpiredError') {
                         Logger.warn('ExpressMiddleware: TokenExpiredErr caught, cleanup user state using token from cookie.');
-                        customException = ExceptionFactory.createException(CustomExceptionType.EXPIRED_USER_TOKEN);
+
                         // handle remove user from room and remove user's expired token
                         await usersServiceSingleton.verifyUserTokenFetchUser(token!);
                     }
-                    next(new Error(customException.printError()));
+                    next(new ExpiredUserTokenException());
                 }
             }
             // save users tokenId to DB
-            const {err: saveUsersSocketIDErr} = await usersServiceSingleton.saveUsersSocketID(userId!._id, socket.id);
-            // check if socketId was saved if not return err
-            if (saveUsersSocketIDErr !== '') {
-                next(new Error(saveUsersSocketIDErr));
-            }
+            await usersServiceSingleton.saveUsersSocketID(userId!._id, socket.id);
+
             // if no err set userId and token as session variables on data property
             socket.data.userId = userId!._id;
             socket.data.token = token;
@@ -69,8 +70,8 @@ export const socket = (server: http.Server) => {
         } else {
             // no cookie present on socketIO connection request
             Logger.warn(`Socket: io.use: Problem authenticating user, no cookie provided socket.handshake.headers.cookie = ${socket.handshake.headers.cookie}.`);
-            const customException: CustomException = ExceptionFactory.createException(CustomExceptionType.UNAUTHORIZED_ACTION);
-            next(new Error(customException.printError()));
+
+            next(new UnauthorizedActionException());
         }
     }));
 
@@ -81,444 +82,342 @@ export const socket = (server: http.Server) => {
 
         // HANDLE INCOMING CREATE ROOM SOCKET_IO REQUEST
         socket.on('createRoom', async ({newRoom}, callback) => {
-            // verify user token helper
-            const {currentUser, err} = await usersServiceSingleton.verifyUserTokenFetchUser(socket.data.token);
+            try {
+                // verify user token helper
+                const {currentUser} = await usersServiceSingleton.verifyUserTokenFetchUser(socket.data.token);
 
-            // check if verifyUserToken returned an error
-            if (err !== '') {
-                return callback(err);
+                // response is error if there was a problem and roomName if not
+                const {roomName} = await roomsServiceSingleton.createRoom(currentUser, newRoom);
+
+                // send roomUsersUpdate to all sockets in current room
+                await sendUsersInRoomUpdate(io, roomName);
+
+                // send roomsListUpdate to all sockets
+                await sendRoomsListUpdate(io);
+
+                // if no err current user joins chat group, response is the room name
+                socket.join(roomName!);
+
+                Logger.debug(`Socket: socket.on createRoom: The socket ${socket.id} has joined the room ${roomName}.`);
+
+                // helper method that sends greeting messages and returns callback to listener
+                await sendInitialMessages(io, socket, currentUser!, roomName!, callback);
+
+            } catch (e) {
+                // handle any propagated error
+                abstractExceptionHandler(e, callback);
             }
-
-            // response is error if there was a problem and roomName if not
-            const {roomName, createRoomErr} = await roomsServiceSingleton.createRoom(currentUser!, newRoom);
-
-            // check if response is an error, if not current socket joins the newly created room
-            if (createRoomErr !== '') {
-                return callback(createRoomErr);
-            }
-
-            // send roomUsersUpdate to all sockets in current room
-            await sendUsersInRoomUpdate(io, roomName!, callback);
-
-            // send roomsListUpdate to all sockets
-            await sendRoomsListUpdate(io, callback);
-
-            // if no err current user joins chat group, response is the room name
-            socket.join(roomName!);
-
-            Logger.debug(`Socket: socket.on createRoom: The socket ${socket.id} has joined the room ${roomName}.`);
-
-            // helper method that sends greeting messages and returns callback to listener
-            await sendInitialMessages(io, socket, currentUser!, roomName!, callback);
         });
 
         // HANDLE INCOMING EDIT ROOM SOCKET_IO REQUEST
         socket.on('editRoom', async ({room}, callback) => {
-            // verify user token helper
-            const {currentUser, err} = await usersServiceSingleton.verifyUserTokenFetchUser(socket.data.token);
+            try {
+                // verify user token helper
+                const {currentUser} = await usersServiceSingleton.verifyUserTokenFetchUser(socket.data.token);
 
-            // check if verifyUserToken returned an error
-            if (err !== '') {
-                return callback(err);
+                // check if current user has ownership of the room
+                const {foundRoom} = await usersServiceSingleton.checkUserRoomOwnershipFetchRoom(currentUser?._id, room._id);
+
+                // check if the newly provided roomName is already in use
+                await roomsServiceSingleton.checkIfRoomNameExists(room.name, foundRoom!._id);
+
+                // if all is well edit room
+                await roomsServiceSingleton.editRoom(room, foundRoom!);
+
+                // send roomsListUpdate to all sockets
+                await sendRoomsListUpdate(io);
+
+                // send updated rooms list created by user
+                const {allUserRooms} = await roomsServiceSingleton.fetchAllUserRooms(currentUser!);
+
+                // emit fetchUserRooms socketIO event with allUserRooms found to specific socket
+                socket.emit('fetchUserRooms', allUserRooms);
+
+            } catch (e) {
+                abstractExceptionHandler(e, callback);
             }
-
-            // check if current user has ownership of the room
-            const {err: checkRoomOwnershipErr, foundRoom} = await usersServiceSingleton.checkUserRoomOwnershipFetchRoom(currentUser?._id, room._id);
-            // check if checkUserRoomOwnership passed if not return err
-            if (checkRoomOwnershipErr !== '') {
-                return callback(checkRoomOwnershipErr);
-            }
-
-            // check if the newly provided roomName is already in use
-            const {err: checkIfRoomNameExistsErr} = await roomsServiceSingleton.checkIfRoomNameExists(room.name, foundRoom!._id);
-            // if the provided room name is in use return an err
-            if (checkIfRoomNameExistsErr !== '') {
-                return callback(checkIfRoomNameExistsErr);
-            }
-
-            // if all is well edit room
-            const {err: editRoomErr} = await roomsServiceSingleton.editRoom(room, foundRoom!);
-            // check if edit room returned an error
-            if (editRoomErr) {
-                return callback(editRoomErr);
-            }
-
-            // send roomsListUpdate to all sockets
-            await sendRoomsListUpdate(io, callback);
-
-            // send updated rooms list created by user
-            const {allUserRooms, err: fetchUserRoomsErr} = await roomsServiceSingleton.fetchAllUserRooms(currentUser!);
-
-            // check if error occurred during fetchAllUserRooms
-            if (fetchUserRoomsErr !== '') {
-                return callback(fetchUserRoomsErr);
-            }
-
-            // emit fetchUserRooms socketIO event with allUserRooms found to specific socket
-            socket.emit('fetchUserRooms', allUserRooms);
         });
 
         // HANDLE INCOMING DELETE_ROOM SOCKET_IO REQUESTS
         socket.on('deleteRoom', async ({roomId}, callback) => {
-            // verify user token helper
-            const {currentUser, err} = await usersServiceSingleton.verifyUserTokenFetchUser(socket.data.token);
+            try {
+                // verify user token helper
+                const {currentUser} = await usersServiceSingleton.verifyUserTokenFetchUser(socket.data.token);
 
-            // check if verifyUserToken returned an error
-            if (err !== '') {
-                return callback(err);
-            }
+                // check if current user has ownership of the room
+                const {foundRoom} = await usersServiceSingleton.checkUserRoomOwnershipFetchRoom(currentUser?._id, roomId);
 
-            // check if current user has ownership of the room
-            const {err: checkRoomOwnershipErr, foundRoom} = await usersServiceSingleton.checkUserRoomOwnershipFetchRoom(currentUser?._id, roomId);
-            // check if checkUserRoomOwnership passed if not return err
-            if (checkRoomOwnershipErr !== '') {
-                return callback(checkRoomOwnershipErr);
-            }
+                await roomsServiceSingleton.deleteRoom(foundRoom!._id);
 
-            const {err: deleteRoomErr} = await roomsServiceSingleton.deleteRoom(foundRoom!._id);
-            // check if deleteRoom passed if not return err
-            if (deleteRoomErr !== '') {
-                return callback(deleteRoomErr);
-            }
-
-            // delete room from socketIO itself by removing all the sockets from it
-            // get socketIO clientSocket ids for all sockets that are in room
-            const clientSocketIds = io.sockets.adapter.rooms.get(foundRoom!.name);
-            if (clientSocketIds && clientSocketIds.size !== 0) {
-                // iterate through all clientSocket ids that are in the room
-                for (const clientId of clientSocketIds) {
-                    // get client socket of user in room by using its id
-                    const clientSocket = io.sockets.sockets.get(clientId);
-                    // if the clientSocket was retrieved call leave on it in order to remove it from the room
-                    if (clientSocket) {
-                        //you can do whatever you need with this
-                        clientSocket.leave(foundRoom!.name);
+                // delete room from socketIO itself by removing all the sockets from it
+                // get socketIO clientSocket ids for all sockets that are in room
+                const clientSocketIds = io.sockets.adapter.rooms.get(foundRoom!.name);
+                if (clientSocketIds && clientSocketIds.size !== 0) {
+                    // iterate through all clientSocket ids that are in the room
+                    for (const clientId of clientSocketIds) {
+                        // get client socket of user in room by using its id
+                        const clientSocket = io.sockets.sockets.get(clientId);
+                        // if the clientSocket was retrieved call leave on it in order to remove it from the room
+                        if (clientSocket) {
+                            //you can do whatever you need with this
+                            clientSocket.leave(foundRoom!.name);
+                        }
                     }
+                    Logger.debug(`socket.ts deleteRoom: removed all sockets from SocketIO instance of the room.`);
+                } else {
+                    Logger.warn(`socket.ts deleteRoom: Failed to retrieve the socketIds of all the clients inside the room ${foundRoom?.name}`);
                 }
-                Logger.debug(`socket.ts deleteRoom: removed all sockets from SocketIO instance of the room.`);
-            } else {
-                Logger.warn(`socket.ts deleteRoom: Failed to retrieve the socketIds of all the clients inside the room ${foundRoom?.name}`);
+
+                // send roomsListUpdate to all sockets
+                await sendRoomsListUpdate(io);
+
+                // send updated rooms list created by user
+                const {allUserRooms} = await roomsServiceSingleton.fetchAllUserRooms(currentUser!);
+
+                // emit fetchUserRooms socketIO event with allUserRooms found
+                socket.emit('fetchUserRooms', allUserRooms);
+
+            } catch (e) {
+                abstractExceptionHandler(e, callback);
             }
-
-            // send roomsListUpdate to all sockets
-            await sendRoomsListUpdate(io, callback);
-
-            // send updated rooms list created by user
-            const {allUserRooms, err: fetchUserRoomsErr} = await roomsServiceSingleton.fetchAllUserRooms(currentUser!);
-
-            // check if error occurred during fetchAllUserRooms
-            if (fetchUserRoomsErr !== '') {
-                return callback(fetchUserRoomsErr);
-            }
-
-            // emit fetchUserRooms socketIO event with allUserRooms found
-            socket.emit('fetchUserRooms', allUserRooms);
         });
 
         // HANDLE INCOMING JOIN_ROOM SOCKET_IO REQUEST
         socket.on('joinRoom', async ({roomName}, callback) => {
-            // verify user token helper
-            const {currentUser, err} = await usersServiceSingleton.verifyUserTokenFetchUser(socket.data.token);
+            try {
+                // verify user token helper
+                const {currentUser} = await usersServiceSingleton.verifyUserTokenFetchUser(socket.data.token);
 
-            // check if verifyUserToken returned an error
-            if (err !== '') {
-                return callback(err);
+                // update rooms state
+                await roomsServiceSingleton.joinRoom(currentUser, roomName);
+
+                // if no err socket joins the room
+                socket.join(roomName);
+
+                Logger.debug(`Socket: socket.on joinRoom: The socket ${socket.id} has joined the room ${roomName}.`);
+
+                // send roomUsersUpdate to all sockets in current room
+                await sendUsersInRoomUpdate(io, roomName);
+
+                // helper method that sends greeting messages and returns callback to listener
+                await sendInitialMessages(io, socket, currentUser, roomName, callback);
+
+            } catch (e) {
+                abstractExceptionHandler(e, callback);
             }
-
-            // update rooms state
-            const {err: joinRoomErr} = await roomsServiceSingleton.joinRoom(currentUser!, roomName);
-
-            // if err return callback with err message
-            if (joinRoomErr !== '') {
-                return callback(joinRoomErr);
-            }
-            // if no err socket joins the room
-            socket.join(roomName);
-
-            Logger.debug(`Socket: socket.on joinRoom: The socket ${socket.id} has joined the room ${roomName}.`);
-
-            // send roomUsersUpdate to all sockets in current room
-            await sendUsersInRoomUpdate(io, roomName, callback);
-
-            // helper method that sends greeting messages and returns callback to listener
-            await sendInitialMessages(io, socket, currentUser!, roomName, callback);
         });
 
         // HANDLE INCOMING LEAVE_ROOM SOCKET_IO REQUEST
         socket.on('leaveRoom', async ({roomName}, callback) => {
-            // verify user token helper
-            const {currentUser, err} = await usersServiceSingleton.verifyUserTokenFetchUser(socket.data.token);
+            try {
+                // verify user token helper
+                const {currentUser} = await usersServiceSingleton.verifyUserTokenFetchUser(socket.data.token);
 
-            // check if verifyUserToken returned an error
-            if (err !== '') {
-                return callback(err);
+                // fetch roomData for provided roomName
+                const {room} = await roomsServiceSingleton.fetchRoom(roomName);
+
+                // update roomsState by removing the user
+                await roomsServiceSingleton.leaveRoom(currentUser!._id, room!);
+
+                // send roomUsersUpdate to all sockets in current room
+                await sendUsersInRoomUpdate(io, roomName);
+
+                // if no error user leaves socketIO group
+                socket.leave(roomName);
+
+                Logger.debug(`Socket: socket.on leaveRoom: The socket ${socket.id} has left the room ${roomName}.`);
+
+                // generate Server message that user has left the room
+                const userLeftMsg: Message = msgGeneratorSingleton.generateMessage(undefined, `${currentUser?.name} has left the chat.`);
+                // send message from server to all users in room
+                io.to(roomName).emit('message', userLeftMsg);
+
+            } catch (e) {
+                abstractExceptionHandler(e, callback);
             }
-
-            // fetch roomData for provided roomName
-            const {room, err: fetchRoomErr} = await roomsServiceSingleton.fetchRoom(roomName);
-
-            // check if proper room obj or error msg
-            if (fetchRoomErr !== '') {
-                return callback(err);
-            }
-
-            // update roomsState by removing the user
-            const {err: leaveRoomErr} = await roomsServiceSingleton.leaveRoom(currentUser!._id, room!);
-
-            // if err return callback with err message
-            if (leaveRoomErr) {
-                return callback(leaveRoomErr);
-            }
-
-            // send roomUsersUpdate to all sockets in current room
-            await sendUsersInRoomUpdate(io, roomName, callback);
-
-            // if no error user leaves socketIO group
-            socket.leave(roomName);
-
-            Logger.debug(`Socket: socket.on leaveRoom: The socket ${socket.id} has left the room ${roomName}.`);
-
-            // send socketIO emit to all users within the room
-            const userLeftMsg: Message = msgGeneratorSingleton.generateMessage(undefined, `${currentUser?.name} has left the chat.`);
-            io.to(roomName).emit('message', userLeftMsg);
         });
 
         // HANDLE INCOMING KICK_USER_FROM_ROOM SOCKET_IO REQUEST
         socket.on('kickUserFromRoom', async ({roomName, userId}, callback) => {
+            try {
+                Logger.debug(`socket.ts: kickUserFromRoom triggered for room ${roomName} and userId ${userId}`);
 
-            Logger.debug(`socket.ts: kickUserFromRoom triggered for room ${roomName} and userId ${userId}`);
+                // verify user token helper
+                const {currentUser} = await usersServiceSingleton.verifyUserTokenFetchUser(socket.data.token);
 
-            // verify user token helper
-            const {currentUser, err: verifyTokenErr} = await usersServiceSingleton.verifyUserTokenFetchUser(socket.data.token);
-            // check if verifyUserToken returned an error
-            if (verifyTokenErr !== '') {
-                return callback(verifyTokenErr);
+                // fetch room by room name
+                const {room} = await roomsServiceSingleton.fetchRoom(roomName);
+
+                await roomsServiceSingleton.kickUserFromRoom(room, userId, currentUser!);
+
+                // get kicked user data
+                const {user} = await usersServiceSingleton.fetchUserById(userId);
+
+                // remove user's socket instance from SocketIO room state
+                Logger.debug(`Socket: socket.on kickUserFromRoom(): Triggered removeSocketFromRoom() (socketIO room state).`);
+                removeSocketFromRoom(io, user!, roomName, 'kick');
+
+                // send roomUsersUpdate to all sockets in current room
+                await sendUsersInRoomUpdate(io, roomName);
+
+                Logger.debug(`Socket: socket.on kickUserFromRoom(): The user ${user?.name} was kicked from the room ${roomName} successfully.`);
+
+                // send socketIO emit to all users within the room that the user was kicked
+                const userWasKickedMsg: Message = msgGeneratorSingleton.generateMessage(undefined, `${user?.name} was kicked from the room.`);
+                io.to(roomName).emit('message', userWasKickedMsg);
+
+            } catch (e) {
+                abstractExceptionHandler(e, callback);
             }
-
-            // fetch room by room name
-            const {room, err: fetchRoomErr} = await roomsServiceSingleton.fetchRoom(roomName);
-
-            // if an error occurred return error string
-            if (fetchRoomErr !== '') {
-                return callback(fetchRoomErr);
-            }
-
-            const {err: kickUserErr} = await roomsServiceSingleton.kickUserFromRoom(room!, userId, currentUser!);
-            // check if user was removed from the room
-            if (kickUserErr !== '') {
-                return callback(kickUserErr);
-            }
-
-            // get kicked user data
-            const {err: findUserErr, user} = await usersServiceSingleton.fetchUserById(userId);
-            // check if user data was found in DB
-            if (findUserErr !== '') {
-                return callback(findUserErr);
-            }
-
-            // remove user's socket instance from SocketIO room state
-            Logger.debug(`Socket: socket.on kickUserFromRoom(): Triggered removeSocketFromRoom() (socketIO room state).`);
-            const {err: removeSocketFromRoomErr} = removeSocketFromRoom(io, user!, roomName, 'kick');
-            // check if socket was removed from SocketIO room successfully
-            if (removeSocketFromRoomErr !== '') {
-                return callback(removeSocketFromRoomErr);
-            }
-
-            // send roomUsersUpdate to all sockets in current room
-            await sendUsersInRoomUpdate(io, roomName, callback);
-
-            Logger.debug(`Socket: socket.on kickUserFromRoom(): The user ${user?.name} was kicked from the room ${roomName} successfully.`);
-
-            // send socketIO emit to all users within the room that the user was kicked
-            const userWasKickedMsg: Message = msgGeneratorSingleton.generateMessage(undefined, `${user?.name} was kicked from the room.`);
-            io.to(roomName).emit('message', userWasKickedMsg);
         });
 
         // HANDLE INCOMING BAN USER FROM ROOM SOCKET_IO REQUEST
         socket.on('banUserFromRoom', async ({roomName, userId}, callback) => {
-            Logger.debug(`socket.ts: banUserFromRoom triggered for room ${roomName} and userId ${userId}`);
+            try {
+                Logger.debug(`socket.ts: banUserFromRoom triggered for room ${roomName} and userId ${userId}`);
 
-            // verify user token helper
-            const {currentUser, err: verifyTokenErr} = await usersServiceSingleton.verifyUserTokenFetchUser(socket.data.token);
-            // check if verifyUserToken returned an error
-            if (verifyTokenErr !== '') {
-                return callback(verifyTokenErr);
+                // verify user token helper
+                const {currentUser} = await usersServiceSingleton.verifyUserTokenFetchUser(socket.data.token);
+
+                // fetch room by room name
+                const {room} = await roomsServiceSingleton.fetchRoom(roomName);
+
+                await roomsServiceSingleton.banUserFromRoom(room, userId, currentUser);
+
+                // get banned user data, needed for socketId of banned user
+                const {user} = await usersServiceSingleton.fetchUserById(userId);
+
+                // remove user's socket instance from SocketIO room state
+                Logger.debug(`Socket: socket.on banUserFromRoom(): Triggered removeSocketFromRoom() (socketIO room state).`);
+                removeSocketFromRoom(io, user, roomName, 'ban');
+
+                // send roomUsersUpdate to all sockets in current room
+                await sendUsersInRoomUpdate(io, roomName);
+
+                Logger.debug(`Socket: socket.on banUserFromRoom(): The user ${user.name} was banned from the room ${roomName} successfully.`);
+
+                // send socketIO emit message as Server to all users within the room that the user was banned
+                const userWasBannedMsg: Message = msgGeneratorSingleton.generateMessage(undefined, `${user.name} was banned from the room.`);
+                io.to(roomName).emit('message', userWasBannedMsg);
+
+            } catch (e) {
+                abstractExceptionHandler(e, callback);
             }
-
-            // fetch room by room name
-            const {room, err: fetchRoomErr} = await roomsServiceSingleton.fetchRoom(roomName);
-
-            // if an error occurred return error string
-            if (fetchRoomErr !== '') {
-                return callback(fetchRoomErr);
-            }
-
-            const {err: banUserFromRoom} = await roomsServiceSingleton.banUserFromRoom(room!, userId, currentUser!);
-            // check if user was banned from the room successfully
-            if (banUserFromRoom !== '') {
-                return callback(banUserFromRoom);
-            }
-
-            // get banned user data, needed for socketId of banned user
-            const {err: findUserErr, user} = await usersServiceSingleton.fetchUserById(userId);
-            // check if user data was found in DB
-            if (findUserErr !== '') {
-                return callback(findUserErr);
-            }
-
-            // remove user's socket instance from SocketIO room state
-            Logger.debug(`Socket: socket.on banUserFromRoom(): Triggered removeSocketFromRoom() (socketIO room state).`);
-            const {err: removeSocketFromRoomErr} = removeSocketFromRoom(io, user!, roomName, 'ban');
-            // check if socket was removed from SocketIO room successfully
-            if (removeSocketFromRoomErr !== '') {
-                return callback(removeSocketFromRoomErr);
-            }
-
-            // send roomUsersUpdate to all sockets in current room
-            await sendUsersInRoomUpdate(io, roomName, callback);
-
-            Logger.debug(`Socket: socket.on banUserFromRoom(): The user ${user?.name} was banned from the room ${roomName} successfully.`);
-
-            // send socketIO emit to all users within the room that the user was kicked
-            const userWasBannedMsg: Message = msgGeneratorSingleton.generateMessage(undefined, `${user?.name} was banned from the room.`);
-            io.to(roomName).emit('message', userWasBannedMsg);
         });
 
         // HANDLE INCOMING FETCH_ROOM SOCKET_IO REQUEST
         socket.on('fetchRoom', async ({roomName}, callback) => {
-            Logger.debug(`socket.ts: socket.on fetchRoom triggered for room ${roomName}`);
-            // verify user token helper
-            const {err} = await usersServiceSingleton.verifyUserTokenFetchUser(socket.data.token);
+            try {
+                Logger.debug(`socket.ts: socket.on fetchRoom triggered for room ${roomName}`);
+                // verify user token helper
+                await usersServiceSingleton.verifyUserTokenFetchUser(socket.data.token);
 
-            // check if verifyUserToken returned an error
-            if (err !== '') {
-                return callback(err);
-            }
-            // fetch room by room name
-            const {room, err: fetchRoomErr} = await roomsServiceSingleton.fetchRoom(roomName);
+                // fetch room by room name
+                const {room} = await roomsServiceSingleton.fetchRoom(roomName);
 
-            // if an error occurred return error string
-            if (fetchRoomErr !== '') {
-                return callback(fetchRoomErr);
+                // if room was found emit fetchRoom event with roomData
+                socket.emit('fetchRoom', room);
+
+            } catch (e) {
+                abstractExceptionHandler(e, callback);
             }
-            // if room was found emit fetchRoom event with roomData
-            socket.emit('fetchRoom', room);
         });
 
         // HANDLE INCOMING FETCH_ALL_ROOMS SOCKET_IO REQUEST
         socket.on('fetchAllRooms', async (callback) => {
-            // verify user token helper
-            const {err: verifyTokenErr} = await usersServiceSingleton.verifyUserTokenFetchUser(socket.data.token);
+            try {
+                // verify user token helper
+                await usersServiceSingleton.verifyUserTokenFetchUser(socket.data.token);
 
-            // check if verifyUserToken returned an error
-            if (verifyTokenErr !== '') {
-                return callback(verifyTokenErr);
+                // fetch all created rooms
+                const {allRooms} = await roomsServiceSingleton.fetchAllRooms();
+
+                // emit fetchAllRooms SocketIO request by sending all created rooms
+                socket.emit('fetchAllRooms', allRooms);
+
+            } catch (e) {
+                abstractExceptionHandler(e, callback);
             }
-            // fetch all created rooms
-            const {allRooms, err: fetchAllRoomsError} = await roomsServiceSingleton.fetchAllRooms();
-            // if an error occurred return error string
-            if (fetchAllRoomsError !== '') {
-                return callback(fetchAllRoomsError);
-            }
-            // emit fetchAllRooms SocketIO request by sending all created rooms
-            socket.emit('fetchAllRooms', allRooms);
         });
 
         // HANDLE INCOMING FETCH_USER_ROOMS SOCKET_IO REQUEST
         socket.on('fetchUserRooms', async (callback) => {
-            // verify user token helper
-            const {currentUser, err: verifyTokenErr} = await usersServiceSingleton.verifyUserTokenFetchUser(socket.data.token);
+            try {
+                // verify user token helper
+                const {currentUser} = await usersServiceSingleton.verifyUserTokenFetchUser(socket.data.token);
 
-            // check if verifyUserToken returned an error
-            if (verifyTokenErr !== '') {
-                return callback(verifyTokenErr);
-            }
-            // fetch all rooms created by specific user
-            const {allUserRooms, err: fetchUserRoomsErr} = await roomsServiceSingleton.fetchAllUserRooms(currentUser!);
+                // fetch all rooms created by specific user
+                const {allUserRooms} = await roomsServiceSingleton.fetchAllUserRooms(currentUser!);
 
-            if (fetchUserRoomsErr !== '') {
-                return callback(fetchUserRoomsErr);
+                // emit fetchUserRooms socketIO event with allUserRooms found
+                socket.emit('fetchUserRooms', allUserRooms);
+
+            } catch (e) {
+                abstractExceptionHandler(e, callback);
             }
-            // emit fetchUserRooms socketIO event with allUserRooms found
-            socket.emit('fetchUserRooms', allUserRooms);
         });
 
         // HANDLE SEND_MESSAGE SOCKET_IO REQUEST
         socket.on('sendMessage', async ({roomName, message}, callback) => {
-            let customException: CustomException;
-            // check if proper message was sent
-            if (!message || message.trim() === '') {
-                customException = ExceptionFactory.createException(CustomExceptionType.INVALID_MESSAGE_SENT);
-                return callback(customException.printError());
+            try {
+                // check if proper message was sent
+                if (!message || message.trim() === '') {
+                    throw new InvalidMessageQueryDataException();
+                }
+
+                // catch profane language in message
+                const badWordsFilter = new Filter();
+
+                if (badWordsFilter.isProfane(message)) {
+                    Logger.debug(`Socket.ts: socket.on sendMessage: Profane language check triggered in room ${roomName}.`);
+                    throw new ProfaneLanguageNotAllowedException();
+                }
+
+                const {room, currentUser} = await initialUserRoomChecksAndDataRetrieval(socket.data.token, roomName);
+
+                // generate proper Message obj
+                const chatMessage: Message = msgGeneratorSingleton.generateMessage(currentUser, message);
+                // update room chat history
+                const {savedChatMessage} = await roomsServiceSingleton.saveChatHistory(room, chatMessage);
+
+                // emit socketIO only to sockets that are in the room
+                io.to(room.name).emit('message', savedChatMessage);
+
+                Logger.info(`Socket.ts: sendMessage() triggered for message ${savedChatMessage?.text}`);
+
+                callback('Info: Message sent successfully!');
+            } catch (e) {
+                abstractExceptionHandler(e, callback);
             }
-
-            // catch profane language in message
-            const badWordsFilter = new Filter();
-
-            if (badWordsFilter.isProfane(message)) {
-                Logger.debug(`Socket.ts: socket.on sendMessage: Profane language check triggered in room ${roomName}.`);
-                customException = ExceptionFactory.createException(CustomExceptionType.PROFANE_LANGUAGE_NOT_ALLOWED);
-                const badWordsErr = customException.printError();
-                return callback(badWordsErr);
-            }
-
-            const {err, room, currentUser} = await initialUserRoomChecksAndDataRetrieval(socket.data.token, roomName);
-            // check if initial checks passed and we got the required userData and roomData
-            if (err !== '') {
-                return callback(err);
-            }
-
-            // generate proper Message obj
-            const chatMessage: Message = msgGeneratorSingleton.generateMessage(currentUser!, message);
-            // update room chat history
-            const {err: saveChatError, savedChatMessage} = await roomsServiceSingleton.saveChatHistory(room!, chatMessage);
-            // check if err
-            if (saveChatError !== '') {
-                return callback(saveChatError);
-            }
-
-            // emit socketIO only to sockets that are in the room
-            io.to(room!.name).emit('message', savedChatMessage);
-
-            Logger.info(`Socket.ts: sendMessage() triggered for message ${savedChatMessage?.text}`);
-
-            callback('Info: Message sent successfully!');
         });
 
         // HANDLE EDIT MESSAGE SOCKET_IO EVENT
         socket.on('editMessage', async ({roomName, editedMessage}: { roomName: string; editedMessage: Message }, callback) => {
-            Logger.debug(`socket.ts: editMessage: Triggered for roomName ${roomName} and editedMessage ${editedMessage.text}`);
-            let customException: CustomException;
-            // check if proper message was sent
-            if (!editedMessage || editedMessage.text.trim() === '' || !editedMessage._id) {
-                customException = ExceptionFactory.createException(CustomExceptionType.INVALID_MESSAGE_SENT);
-                return callback(customException.printError());
-            }
+            try {
+                Logger.debug(`socket.ts: editMessage: Triggered for roomName ${roomName} and editedMessage ${editedMessage.text}`);
 
-            // use helper method for initial room/user related checks and to retrieve currentUser data as well as room data
-            const {err, room} = await initialUserRoomChecksAndDataRetrieval(socket.data.token, roomName);
-            // check if initial checks passed and we got the required userData and roomData
-            if (err !== '') {
-                return callback(err);
-            }
+                // check if proper message was sent
+                if (!editedMessage || editedMessage.text.trim() === '' || !editedMessage._id) {
+                    throw new InvalidMessageQueryDataException();
+                }
 
-            // check if user is author of the message that he is editing
-            const {checkIfMessageBelongsToUserErr} = usersServiceSingleton.checkIfMessageBelongsToUser(editedMessage, socket.data.userId);
-            // return err if message doesn't belong to user
-            if (checkIfMessageBelongsToUserErr !== '') {
-                return callback(checkIfMessageBelongsToUserErr);
-            }
+                // use helper method for initial room/user related checks and to retrieve currentUser data as well as room data
+                const {room} = await initialUserRoomChecksAndDataRetrieval(socket.data.token, roomName);
 
-            // edit user message
-            const {err: editUserMessageErr, updatedRoom} = await usersServiceSingleton.editUserMessage(editedMessage, room!);
-            // check if message was edited and room was updated successfully
-            if (editUserMessageErr !== '') {
-                return callback(editUserMessageErr);
-            }
+                // check if user is author of the message that he is editing
+                usersServiceSingleton.checkIfMessageBelongsToUser(editedMessage, socket.data.userId);
 
-            // emit socketIO event roomChatHistoryEdited only to sockets that are in the room while passing the updatedRoom data
-            io.to(room!.name).emit('roomDataUpdate', updatedRoom);
-            Logger.debug(`socket.ts: editMessage: emitted roomDataUpdate with updatedRoomData`);
+                // edit user message
+                const {updatedRoom} = await usersServiceSingleton.editUserMessage(editedMessage, room!);
+
+                // emit socketIO event roomChatHistoryEdited only to sockets that are in the room while passing the updatedRoom data
+                io.to(room!.name).emit('roomDataUpdate', updatedRoom);
+
+                Logger.debug(`socket.ts: editMessage: emitted roomDataUpdate with updatedRoomData`);
+
+            } catch (e) {
+                abstractExceptionHandler(e, callback);
+            }
         });
 
         // CATCH SOCKET_IO DISCONNECT EVENT
@@ -533,30 +432,21 @@ export const socket = (server: http.Server) => {
 
 // HELPER METHODS
 // initial user checks and get specific room and currentUser data
-const initialUserRoomChecksAndDataRetrieval = async (token: string, roomName: string): Promise<{ err: string, room: RoomPopulatedUsers | undefined, currentUser: User | undefined }> => {
+const initialUserRoomChecksAndDataRetrieval = async (token: string, roomName: string): Promise<{ room: RoomPopulatedUsers, currentUser: User }> => {
 
-    const {currentUser, err} = await UsersService.getInstance().verifyUserTokenFetchUser(token);
+    const {currentUser} = await UsersService.getInstance().verifyUserTokenFetchUser(token);
 
-    // check if verifyUserToken returned an error
-    if (err !== '') {
-        return {err, room: undefined, currentUser: undefined};
-    }
     // check if room exists
-    const {room, err: fetchRoomErr} = await RoomsService.getInstance().fetchRoom(roomName);
-
-    // return fetchRoom err
-    if (fetchRoomErr !== '') {
-        return {err: fetchRoomErr, room: undefined, currentUser: undefined};
-    }
+    const {room} = await RoomsService.getInstance().fetchRoom(roomName);
 
     // check if user in actual room where he is sending a message
-    const {isUserInRoomErr} = UsersService.getInstance().checkIfUserInRoom(currentUser!, room!);
+    const {userIsInRoom} = RoomsService.getInstance().checkIfUserIsInRoom(room.usersInRoom, currentUser.id, roomName);
     // check if isUserInRoomErr exists
-    if (isUserInRoomErr !== '') {
-        return {err: isUserInRoomErr, room: undefined, currentUser: undefined};
+    if (!userIsInRoom) {
+        throw new UserNotInRoomException();
     }
 
-    return {err: '', room, currentUser};
+    return {room, currentUser};
 }
 
 const sendInitialMessages = async (io: Server, socket: any, currentUser: User, roomName: string, callback: any) => {
@@ -578,52 +468,42 @@ const sendInitialMessages = async (io: Server, socket: any, currentUser: User, r
 
 // remove socket instance from SocketIO room
 const removeSocketFromRoom = (io: Server, user: User, roomName: string, kickOrBan: string) => {
-    let err = '';
     // get msgGeneratorSingleton instance
     const msgGeneratorSingleton = MessageGeneratorService.getInstance();
     // if we got here user exists, get socket instance by using user's socketID and call leave room on that instance
-    if (user!.socketId) {
+    if (user.socketId) {
         // get client's socket instance by using the user's socketId
-        const client = io.sockets.sockets.get(user!.socketId);
+        const client = io.sockets.sockets.get(user.socketId);
 
         // remove client's socket from the room
         client!.leave(roomName);
 
         // generate kickedFromRoomMsg and notify the client socket that it was kicked from the room
-        const removedFromRoomMsg = msgGeneratorSingleton.generateMessage(undefined, `You were ${kickOrBan === 'kick'? 'kicked' : 'banned'} from the room by the admin.`);
-        client!.emit(kickOrBan==='kick'? 'kickedFromRoom' : 'bannedFromRoom', removedFromRoomMsg);
+        const removedFromRoomMsg = msgGeneratorSingleton.generateMessage(undefined, `You were ${kickOrBan === 'kick' ? 'kicked' : 'banned'} from the room by the admin.`);
+        client!.emit(kickOrBan === 'kick' ? 'kickedFromRoom' : 'bannedFromRoom', removedFromRoomMsg);
 
         Logger.debug(`Socket: removeSocketFromRoom():  Updated socketIO room state by removing socketInstance ${user!.socketId} from room.`);
     } else {
         // if there was no socketId for the given user return an err
         Logger.error(`Socket: removeSocketFromRoom(): Problem removing user from SocketIO room with socketID ${user!.socketId} roomName= ${roomName}`);
-        const customException = ExceptionFactory.createException(CustomExceptionType.PROBLEM_REMOVING_SOCKET_FROM_SOCKET_IO_ROOM);
-        err = customException.printError();
-        return {err};
+        throw new ProblemRemovingSocketFromSocketIORoomException();
     }
-    return {err};
 }
 
 
-const sendUsersInRoomUpdate = async (io: Server, roomName: string, callback: any) => {
+const sendUsersInRoomUpdate = async (io: Server, roomName: string) => {
     // get latest room data
-    const {room, err: fetchRoomErr} = await RoomsService.getInstance().fetchRoom(roomName);
-    // check for errors
-    if (fetchRoomErr !== '') {
-        return callback(fetchRoomErr);
-    }
+    const {room} = await RoomsService.getInstance().fetchRoom(roomName);
+
     Logger.debug(`Socket.ts: sendUsersInRoomUpdate: Sent update with room data for room ${roomName}`);
     // send socketIO roomDataUpdate emit to all users within the room
     io.to(roomName).emit('roomDataUpdate', room);
 }
 
-const sendRoomsListUpdate = async (io: Server, callback: any) => {
+const sendRoomsListUpdate = async (io: Server) => {
     // fetch all rooms
-    const {allRooms, err} = await RoomsService.getInstance().fetchAllRooms();
-    // check for errors
-    if (err !== '') {
-        return callback(err);
-    }
+    const {allRooms} = await RoomsService.getInstance().fetchAllRooms();
+
     Logger.debug('Socket.ts: sendRoomsListUpdate: Sent rooms list update');
     // send socketIO roomsListUpdate emit to all users
     io.emit('roomsListUpdate', allRooms);

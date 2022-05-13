@@ -1,6 +1,5 @@
 import {Request, Response} from "express";
 import {User as UserModel} from "../db/models/user";
-import {UserNameOrEmailTaken} from "../chat/exceptions/user-name-or-email-taken";
 import Logger from "../logger/logger";
 
 const signUp = async (req: Request, res: Response) => {
@@ -28,7 +27,6 @@ const signUp = async (req: Request, res: Response) => {
     } catch (err) {
         if (err instanceof Error && err.message.split(' ')[0] === ALREADY_CREATED) {
 
-            err.message = new UserNameOrEmailTaken().printError();
             Logger.warn(`Controllers: signUp: Problem creating new user for: ${user.name}.`);
 
             res.status(400).json({
