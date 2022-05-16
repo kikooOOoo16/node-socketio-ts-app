@@ -40,7 +40,7 @@ export const socket = (server: http.Server) => {
         if (socket.handshake.headers.cookie) {
             let userId: UserTokenPayload;
             // get token value from cookie, token is stored as access_token=token-value string
-            const token = socket.handshake.headers.cookie?.split('=')[1];
+            const token = socket.handshake.headers.cookie.split('=')[1];
 
             try {
                 // verify token validity
@@ -54,7 +54,7 @@ export const socket = (server: http.Server) => {
                         Logger.warn('ExpressMiddleware: TokenExpiredErr caught, cleanup user state using token from cookie.');
 
                         // handle remove user from room and remove user's expired token
-                        await usersServiceSingleton.verifyUserTokenFetchUser(token!);
+                        await usersServiceSingleton.verifyUserTokenFetchUser(token);
                     }
                     next(new ExpiredUserTokenException());
                 }
@@ -96,12 +96,12 @@ export const socket = (server: http.Server) => {
                 await sendRoomsListUpdate(io);
 
                 // if no err current user joins chat group, response is the room name
-                socket.join(roomName!);
+                socket.join(roomName);
 
                 Logger.debug(`Socket: socket.on createRoom: The socket ${socket.id} has joined the room ${roomName}.`);
 
                 // helper method that sends greeting messages and returns callback to listener
-                await sendInitialMessages(io, socket, currentUser!, roomName!, callback);
+                await sendInitialMessages(io, socket, currentUser, roomName, callback);
 
             } catch (e) {
                 // handle any propagated error
@@ -119,16 +119,16 @@ export const socket = (server: http.Server) => {
                 const {foundRoom} = await usersServiceSingleton.checkUserRoomOwnershipFetchRoom(currentUser?._id, room._id);
 
                 // check if the newly provided roomName is already in use
-                await roomsServiceSingleton.checkIfRoomNameExists(room.name, foundRoom!._id);
+                await roomsServiceSingleton.checkIfRoomNameExists(room.name, foundRoom._id);
 
                 // if all is well edit room
-                await roomsServiceSingleton.editRoom(room, foundRoom!);
+                await roomsServiceSingleton.editRoom(room, foundRoom);
 
                 // send roomsListUpdate to all sockets
                 await sendRoomsListUpdate(io);
 
                 // send updated rooms list created by user
-                const {allUserRooms} = await roomsServiceSingleton.fetchAllUserRooms(currentUser!);
+                const {allUserRooms} = await roomsServiceSingleton.fetchAllUserRooms(currentUser);
 
                 // emit fetchUserRooms socketIO event with allUserRooms found to specific socket
                 socket.emit('fetchUserRooms', allUserRooms);
@@ -147,11 +147,11 @@ export const socket = (server: http.Server) => {
                 // check if current user has ownership of the room
                 const {foundRoom} = await usersServiceSingleton.checkUserRoomOwnershipFetchRoom(currentUser?._id, roomId);
 
-                await roomsServiceSingleton.deleteRoom(foundRoom!._id);
+                await roomsServiceSingleton.deleteRoom(foundRoom._id);
 
                 // delete room from socketIO itself by removing all the sockets from it
                 // get socketIO clientSocket ids for all sockets that are in room
-                const clientSocketIds = io.sockets.adapter.rooms.get(foundRoom!.name);
+                const clientSocketIds = io.sockets.adapter.rooms.get(foundRoom.name);
                 if (clientSocketIds && clientSocketIds.size !== 0) {
                     // iterate through all clientSocket ids that are in the room
                     for (const clientId of clientSocketIds) {
@@ -160,19 +160,19 @@ export const socket = (server: http.Server) => {
                         // if the clientSocket was retrieved call leave on it in order to remove it from the room
                         if (clientSocket) {
                             //you can do whatever you need with this
-                            clientSocket.leave(foundRoom!.name);
+                            clientSocket.leave(foundRoom.name);
                         }
                     }
                     Logger.debug(`socket.ts deleteRoom: removed all sockets from SocketIO instance of the room.`);
                 } else {
-                    Logger.warn(`socket.ts deleteRoom: Failed to retrieve the socketIds of all the clients inside the room ${foundRoom?.name}`);
+                    Logger.warn(`socket.ts deleteRoom: Failed to retrieve the socketIds of all the clients inside the room ${foundRoom.name}`);
                 }
 
                 // send roomsListUpdate to all sockets
                 await sendRoomsListUpdate(io);
 
                 // send updated rooms list created by user
-                const {allUserRooms} = await roomsServiceSingleton.fetchAllUserRooms(currentUser!);
+                const {allUserRooms} = await roomsServiceSingleton.fetchAllUserRooms(currentUser);
 
                 // emit fetchUserRooms socketIO event with allUserRooms found
                 socket.emit('fetchUserRooms', allUserRooms);
@@ -217,7 +217,7 @@ export const socket = (server: http.Server) => {
                 const {room} = await roomsServiceSingleton.fetchRoom(roomName);
 
                 // update roomsState by removing the user
-                await roomsServiceSingleton.leaveRoom(currentUser!._id, room!);
+                await roomsServiceSingleton.leaveRoom(currentUser._id, room);
 
                 // send roomUsersUpdate to all sockets in current room
                 await sendUsersInRoomUpdate(io, roomName);
@@ -248,22 +248,22 @@ export const socket = (server: http.Server) => {
                 // fetch room by room name
                 const {room} = await roomsServiceSingleton.fetchRoom(roomName);
 
-                await roomsServiceSingleton.kickUserFromRoom(room, userId, currentUser!);
+                await roomsServiceSingleton.kickUserFromRoom(room, userId, currentUser);
 
                 // get kicked user data
                 const {user} = await usersServiceSingleton.fetchUserById(userId);
 
                 // remove user's socket instance from SocketIO room state
                 Logger.debug(`Socket: socket.on kickUserFromRoom(): Triggered removeSocketFromRoom() (socketIO room state).`);
-                removeSocketFromRoom(io, user!, roomName, 'kick');
+                removeSocketFromRoom(io, user, roomName, 'kick');
 
                 // send roomUsersUpdate to all sockets in current room
                 await sendUsersInRoomUpdate(io, roomName);
 
-                Logger.debug(`Socket: socket.on kickUserFromRoom(): The user ${user?.name} was kicked from the room ${roomName} successfully.`);
+                Logger.debug(`Socket: socket.on kickUserFromRoom(): The user ${user.name} was kicked from the room ${roomName} successfully.`);
 
                 // send socketIO emit to all users within the room that the user was kicked
-                const userWasKickedMsg: Message = msgGeneratorSingleton.generateMessage(undefined, `${user?.name} was kicked from the room.`);
+                const userWasKickedMsg: Message = msgGeneratorSingleton.generateMessage(undefined, `${user.name} was kicked from the room.`);
                 io.to(roomName).emit('message', userWasKickedMsg);
 
             } catch (e) {
@@ -347,7 +347,7 @@ export const socket = (server: http.Server) => {
                 const {currentUser} = await usersServiceSingleton.verifyUserTokenFetchUser(socket.data.token);
 
                 // fetch all rooms created by specific user
-                const {allUserRooms} = await roomsServiceSingleton.fetchAllUserRooms(currentUser!);
+                const {allUserRooms} = await roomsServiceSingleton.fetchAllUserRooms(currentUser);
 
                 // emit fetchUserRooms socketIO event with allUserRooms found
                 socket.emit('fetchUserRooms', allUserRooms);
@@ -383,7 +383,7 @@ export const socket = (server: http.Server) => {
                 // emit socketIO only to sockets that are in the room
                 io.to(room.name).emit('message', savedChatMessage);
 
-                Logger.info(`Socket.ts: sendMessage() triggered for message ${savedChatMessage?.text}`);
+                Logger.debug(`Socket.ts: sendMessage() triggered for message ${savedChatMessage?.text}`);
 
                 callback('Info: Message sent successfully!');
             } catch (e) {
@@ -408,10 +408,10 @@ export const socket = (server: http.Server) => {
                 usersServiceSingleton.checkIfMessageBelongsToUser(editedMessage, socket.data.userId);
 
                 // edit user message
-                const {updatedRoom} = await usersServiceSingleton.editUserMessage(editedMessage, room!);
+                const {updatedRoom} = await usersServiceSingleton.editUserMessage(editedMessage, room);
 
                 // emit socketIO event roomChatHistoryEdited only to sockets that are in the room while passing the updatedRoom data
-                io.to(room!.name).emit('roomDataUpdate', updatedRoom);
+                io.to(room.name).emit('roomDataUpdate', updatedRoom);
 
                 Logger.debug(`socket.ts: editMessage: emitted roomDataUpdate with updatedRoomData`);
 
@@ -449,7 +449,7 @@ const initialUserRoomChecksAndDataRetrieval = async (token: string, roomName: st
     return {room, currentUser};
 }
 
-const sendInitialMessages = async (io: Server, socket: any, currentUser: User, roomName: string, callback: any) => {
+const sendInitialMessages = async (io: Server, socket: Socket, currentUser: User, roomName: string, callback: any) => {
     // get msgGeneratorSingleton instance
     const msgGeneratorSingleton = MessageGeneratorService.getInstance();
     // Send greetings from app msg to current socket.
@@ -475,17 +475,23 @@ const removeSocketFromRoom = (io: Server, user: User, roomName: string, kickOrBa
         // get client's socket instance by using the user's socketId
         const client = io.sockets.sockets.get(user.socketId);
 
-        // remove client's socket from the room
-        client!.leave(roomName);
+        if (client) {
+            // remove client's socket from the room
+            client.leave(roomName);
 
-        // generate kickedFromRoomMsg and notify the client socket that it was kicked from the room
-        const removedFromRoomMsg = msgGeneratorSingleton.generateMessage(undefined, `You were ${kickOrBan === 'kick' ? 'kicked' : 'banned'} from the room by the admin.`);
-        client!.emit(kickOrBan === 'kick' ? 'kickedFromRoom' : 'bannedFromRoom', removedFromRoomMsg);
+            // generate kickedFromRoomMsg and notify the client socket that it was kicked from the room
+            const removedFromRoomMsg = msgGeneratorSingleton.generateMessage(undefined, `You were ${kickOrBan === 'kick' ? 'kicked' : 'banned'} from the room by the admin.`);
+            client.emit(kickOrBan === 'kick' ? 'kickedFromRoom' : 'bannedFromRoom', removedFromRoomMsg);
 
-        Logger.debug(`Socket: removeSocketFromRoom():  Updated socketIO room state by removing socketInstance ${user!.socketId} from room.`);
+            Logger.debug(`Socket: removeSocketFromRoom():  Updated socketIO room state by removing socketInstance ${user.socketId} from room.`);
+        }
+        // if no client, failed to remove socket instance from SocketIO room
+        Logger.error(`Socket: removeSocketFromRoom(): Problem removing user from SocketIO room with socketID ${user.socketId} roomName= ${roomName}`);
+        throw new ProblemRemovingSocketFromSocketIORoomException();
+
     } else {
         // if there was no socketId for the given user return an err
-        Logger.error(`Socket: removeSocketFromRoom(): Problem removing user from SocketIO room with socketID ${user!.socketId} roomName= ${roomName}`);
+        Logger.error(`Socket: removeSocketFromRoom(): Problem removing user from SocketIO room with socketID ${user.socketId} roomName= ${roomName}`);
         throw new ProblemRemovingSocketFromSocketIORoomException();
     }
 }

@@ -230,7 +230,7 @@ export class RoomsService {
         }
 
         // remove user from current room, must convert ObjectID into string because === fails (different references);
-        usersInRoom = usersInRoom!.filter((userIdInRoom: any) => String(userIdInRoom._id) !== String(userId));
+        usersInRoom = usersInRoom.filter((userIdInRoom: any) => String(userIdInRoom._id) !== String(userId));
 
         Logger.debug(`RoomsService: leaveRoom(): Updated usersInRoom array  ${usersInRoom}.`);
 

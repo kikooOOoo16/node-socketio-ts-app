@@ -15,6 +15,7 @@ import {UnauthorizedActionNotRoomAuthorException} from "./exceptions/user-relate
 import {ProblemUpdatingRoomException} from "./exceptions/room-related-exceptions/problem-updating-room-exception";
 import {ProblemSavingUserSocketIdException} from "./exceptions/user-related-exceptions/problem-saving-user-socket-id-exception";
 import {RoomsService} from "./rooms-service";
+import {ProblemEditingChatMessageException} from "./exceptions/message-related-exceptions/problem-editing-chat-message-exception";
 
 export class UsersService {
     private static instance: UsersService;
@@ -97,7 +98,7 @@ export class UsersService {
 
         const {user: currentUser} = await this.fetchUserById(decodedToken._id);
 
-        Logger.debug(`users-service: verifyUserTokenFetchUser: Successfully verified token, and returning user name = ${currentUser!.name}`);
+        Logger.debug(`users-service: verifyUserTokenFetchUser: Successfully verified token, and returning user name = ${currentUser.name}`);
 
         return {currentUser};
     }
@@ -150,14 +151,19 @@ export class UsersService {
     }
 
     editUserMessage = async (editedMessage: Message, room: RoomPopulatedUsers): Promise<{ updatedRoom: RoomPopulatedUsers }> => {
-        //edit specific message in room's chat history
-        for (let i = 0; i < room.chatHistory!.length; i++) {
-            if (String(room.chatHistory![i]._id) === String(editedMessage._id)) {
-                Logger.warn(`users-service: editUserMessage(): editedMessage condition fulfilled`);
-                room.chatHistory![i].text = editedMessage.text;
-                room.chatHistory![i].edited = true;
-                break;
+
+        if (room.chatHistory && room.chatHistory.length > 0) {
+            //edit specific message in room's chat history
+            for (let i = 0; i < room.chatHistory.length; i++) {
+                if (String(room.chatHistory[i]._id) === String(editedMessage._id)) {
+                    room.chatHistory[i].text = editedMessage.text;
+                    room.chatHistory[i].edited = true;
+                    break;
+                }
             }
+        } else {
+            Logger.warn(`users-service: editUserMessage(): Problem editing chat message. The room's (name = ${room.name}) chat history is empty room.chatHistory.length = ${room.chatHistory?.length}`);
+            throw new ProblemEditingChatMessageException();
         }
 
         Logger.debug(`users-service: editUserMessage(): Room with edited chat history = ${room}`);
