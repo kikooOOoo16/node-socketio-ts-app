@@ -19,5 +19,4 @@ export class ServiceFactory {
     static createService(serviceTypes: ServiceTypes) {
         return this.serviceMap.get(serviceTypes);
     }
-
 }
