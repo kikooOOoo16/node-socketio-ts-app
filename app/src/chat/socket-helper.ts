@@ -15,6 +15,7 @@ import {RoomsService} from "../services/chat-services/rooms-service";
 import {AuthService} from "../services/auth-services/auth-service";
 import {RoomUsersManagerService} from "../services/chat-services/room-users-manager-service";
 import {MessageGeneratorService} from "../services/chat-services/message-generator-service";
+import {SocketEventsTypes} from "./socket-events-types";
 
 export class SocketHelper {
     private usersService: UsersService;
@@ -57,11 +58,11 @@ export class SocketHelper {
         const welcomeMsg: Message = this.messageGeneratorService.generateMessage(undefined, 'Welcome to the Chat app! Please follow our guidelines.');
 
         // send message to specific user
-        io.to(socket.id).emit('message', welcomeMsg);
+        io.to(socket.id).emit(SocketEventsTypes.MESSAGE, welcomeMsg);
 
         // send socketIO emit to all users within the room
         const newUserInRoomMsg: Message = this.messageGeneratorService.generateMessage(undefined, `${currentUser.name} has joined the chat.`);
-        socket.broadcast.to(roomName).emit('message', newUserInRoomMsg);
+        socket.broadcast.to(roomName).emit(SocketEventsTypes.MESSAGE, newUserInRoomMsg);
 
         // return callback with roomName
         callback(roomName);
@@ -80,7 +81,7 @@ export class SocketHelper {
 
                 // generate kickedFromRoomMsg and notify the client socket that it was kicked from the room
                 const removedFromRoomMsg = this.messageGeneratorService.generateMessage(undefined, `You were ${kickOrBan === 'kick' ? 'kicked' : 'banned'} from the room by the admin.`);
-                client.emit(kickOrBan === 'kick' ? 'kickedFromRoom' : 'bannedFromRoom', removedFromRoomMsg);
+                client.emit(kickOrBan === 'kick' ? SocketEventsTypes.KICKED_FROM_ROOM : SocketEventsTypes.BANNED_FROM_ROOM, removedFromRoomMsg);
 
                 Logger.debug(`socket-helper: removeSocketFromRoom():  Updated socketIO room state by removing socketInstance ${user.socketId} from roomName= ${roomName}.`);
                 return;
@@ -122,7 +123,7 @@ export class SocketHelper {
 
         Logger.debug(`socket-helper: sendUsersInRoomUpdate(): Sent update with room data for room ${roomName}`);
         // send socketIO roomDataUpdate emit to all users within the room
-        io.to(roomName).emit('roomDataUpdate', room);
+        io.to(roomName).emit(SocketEventsTypes.ROOM_DATA_UPDATE, room);
     }
 
     async sendRoomsListUpdate(io: Server) {
@@ -131,6 +132,6 @@ export class SocketHelper {
 
         Logger.debug('socket-helper: sendRoomsListUpdate(): Sent rooms list update');
         // send socketIO roomsListUpdate emit to all users
-        io.emit('roomsListUpdate', allRooms);
+        io.emit(SocketEventsTypes.ROOMS_LIST_UPDATE, allRooms);
     }
 }
