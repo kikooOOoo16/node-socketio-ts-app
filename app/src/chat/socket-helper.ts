@@ -34,18 +34,15 @@ export class SocketHelper {
 
     // initial user checks and get specific room and currentUser data
     async initialUserRoomChecksAndDataRetrieval(token: string, roomName: string): Promise<{ room: RoomPopulatedUsers, currentUser: User }> {
-        // verify user token
+
         const tokenPayload: UserTokenPayload = await this.authService.verifyJWT(token);
 
-        // fetch user by id
         const {user: currentUser} = await this.usersService.fetchUserById(tokenPayload._id);
 
-        // check if room exists
         const {room} = await this.roomsService.fetchRoomPopulateUsers(roomName);
 
-        // check if user in actual room where he is sending a message
         const {userIsInRoom} = this.roomUsersManagerService.checkIfUserIsInRoom(room.usersInRoom, currentUser._id, roomName);
-        // check if isUserInRoomErr exists
+
         if (!userIsInRoom) {
             throw new UserNotInRoomException();
         }
@@ -72,16 +69,16 @@ export class SocketHelper {
     removeSocketFromRoom(io: Server, user: User, roomName: string, kickOrBan: string) {
         // get socket instance by using user's socketID and call leave room on that instance
         if (user.socketId) {
-            // get client's socket instance by using the user's socketId
-            const client = io.sockets.sockets.get(user.socketId);
 
-            if (client) {
-                // remove client's socket from the room
-                client.leave(roomName);
+            const clientSocket = io.sockets.sockets.get(user.socketId);
+
+            if (clientSocket) {
+
+                clientSocket.leave(roomName);
 
                 // generate kickedFromRoomMsg and notify the client socket that it was kicked from the room
                 const removedFromRoomMsg = this.messageGeneratorService.generateMessage(undefined, `You were ${kickOrBan === 'kick' ? 'kicked' : 'banned'} from the room by the admin.`);
-                client.emit(kickOrBan === 'kick' ? SocketEventsTypes.KICKED_FROM_ROOM : SocketEventsTypes.BANNED_FROM_ROOM, removedFromRoomMsg);
+                clientSocket.emit(kickOrBan === 'kick' ? SocketEventsTypes.KICKED_FROM_ROOM : SocketEventsTypes.BANNED_FROM_ROOM, removedFromRoomMsg);
 
                 Logger.debug(`socket-helper: removeSocketFromRoom():  Updated socketIO room state by removing socketInstance ${user.socketId} from roomName= ${roomName}.`);
                 return;
@@ -101,13 +98,12 @@ export class SocketHelper {
         // get socketIO clientSocket ids for all sockets that are in room
         const clientSocketIds = io.sockets.adapter.rooms.get(roomName);
         if (clientSocketIds && clientSocketIds.size !== 0) {
-            // iterate through all clientSocket ids that are in the room
+
             for (const clientId of clientSocketIds) {
-                // get client socket of user in room by using its id
+
                 const clientSocket = io.sockets.sockets.get(clientId);
-                // if the clientSocket was retrieved call leave on it in order to remove it from the room
+
                 if (clientSocket) {
-                    //you can do whatever you need with this
                     clientSocket.leave(roomName);
                 }
             }
@@ -127,7 +123,7 @@ export class SocketHelper {
     }
 
     async sendRoomsListUpdate(io: Server) {
-        // fetch all rooms
+
         const {allRooms} = await this.roomsService.fetchAllRooms();
 
         Logger.debug('socket-helper: sendRoomsListUpdate(): Sent rooms list update');

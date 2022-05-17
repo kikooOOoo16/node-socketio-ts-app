@@ -19,34 +19,33 @@ const auth = async (req: Request, res: Response, next: NextFunction) => {
     let exceptionMsg = '';
     let token: string;
     if (req.cookies && req.cookies.access_token) {
-        // retrieve cookie access_token
+
         token = req.cookies.access_token;
 
         try {
             const decodedToken =  await authService.verifyJWT(token);
             // find user by using the _id from the token
             const {user} = await usersService.fetchUserById(decodedToken._id);
-            // check if user was found
+
             if (!user) {
                 throw new ProblemRetrievingDataException();
             }
-            // save user obj to req
+
             req.user = user;
-            // continue chain
             next();
+
         } catch (err) {
             if (err instanceof AbstractException) {
                 Logger.warn(`ExpressMiddleware: Unauthorized action caught. Err= ${err.message}`);
 
-                // check if tokenExpiredError thrown and handle cleanup
                 if (err.name === 'TokenExpiredError') {
 
                     Logger.warn('ExpressMiddleware: TokenExpiredErr caught, cleanup user state using token from cookie.');
 
                     exceptionMsg = new ExpiredUserTokenException().message;
-                    // get payload out of expired token
+
                     const payload = authService.getExpiredJWTPayload(token);
-                    // handle remove user from room
+
                     await roomUsersManagerService.removeUserFromAllRooms(payload._id);
                 }
                 exceptionMsg = new UnauthorizedActionException().message;

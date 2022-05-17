@@ -29,7 +29,7 @@ export class UserControllers {
 
         try {
             await user.save();
-            // create user token
+
             const token = await authService.generateAuthToken(String(user._id));
             Logger.debug(`UserControllers: signUp(): New user created: ${user.name}.`);
 

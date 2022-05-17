@@ -29,9 +29,9 @@ export class UsersService {
     }
 
     async fetchUserById(userId: Schema.Types.ObjectId | string): Promise<{ user: User }> {
-        // find user by using the _id from the token
+
         const user: User | null = await UserModel.findById(userId);
-        // check if currentUser was found
+
         if (!user) {
             Logger.warn(`Couldn't find user in db with provided userId= ${userId}`);
             throw new UnauthorizedActionException();
@@ -64,7 +64,7 @@ export class UsersService {
             // update user in DB with new socketId
             await UserModel.findByIdAndUpdate(userId, {socketId: socketId});
         } catch (e) {
-            // handle error
+
             Logger.error(`users-service: saveUsersSocketID: failed saving user's socket id with err ${e.message}`);
             throw new ProblemSavingUserSocketIdException();
         }
@@ -77,7 +77,7 @@ export class UsersService {
             // update user in DB with new socketId
             await UserModel.findByIdAndUpdate(userId, {socketId: null});
         } catch (e) {
-            // handle error
+
             Logger.error(`users-service: saveUsersSocketID: failed saving user's socket id with err ${e.message}`);
             throw new ProblemSavingUserSocketIdException();
         }
@@ -126,11 +126,10 @@ export class UsersService {
                     path: 'usersInRoom',
                     select: '_id name email'
                 });
-            // if updateRoom was successful return updatedRoom
+
             if (updatedRoom !== null) {
                 Logger.debug(`users-service: editUserMessage(): Saved updatedRoom to DB.`);
                 return {updatedRoom};
-                // else updatedRoom is null so update failed return error
             } else {
                 Logger.warn(`users-service: editUserMessage(): Problem updating room's chat history. Update result updateRoom = ${updatedRoom}, possible that the required room name= ${room.name} was not found.`);
                 throw new ProblemUpdatingRoomException();

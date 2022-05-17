@@ -25,7 +25,7 @@ export class AuthService {
     }
 
     async validateUserCredentials(user: User, password: string) {
-        // check if encrypted password matches user's saved encrypted password
+
         const isMatch = await bcrypt.compare(password, user.password!);
         if (!isMatch) {
             Logger.warn(`auth-service: validateUserCredentials(): failed for user ${user.name}`);
@@ -41,11 +41,9 @@ export class AuthService {
             if (e instanceof Error) {
                 Logger.warn(`auth-service: verifyJWT(): Failed to validate user auth token with err message ${e.message}`);
 
-                // check if user token expired
                 if (e.name === 'TokenExpiredError') {
                     Logger.warn('auth-service: verifyJWT(): TokenExpiredErr caught, remove user if he is in any room.');
 
-                    // get user id from expired token
                     const payload = this.getExpiredJWTPayload(token);
                     // handle remove user from room
                     await this.roomUsersManagerService.removeUserFromAllRooms(payload._id);
@@ -57,8 +55,8 @@ export class AuthService {
         }
     }
 
+    // get user id from expired token
     getExpiredJWTPayload(token: string): UserTokenPayload {
-        // get user id from expired token
         return jwt.verify(token, process.env.JWT_SECRET, {ignoreExpiration: true}) as UserTokenPayload;
     }
 

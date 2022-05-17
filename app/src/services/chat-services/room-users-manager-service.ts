@@ -28,19 +28,17 @@ export class RoomUsersManagerService {
         return RoomUsersManagerService.instance;
     }
 
-    // join a room
     async joinRoom(currentUser: User, roomName: string) {
         const roomsService: RoomsService = ServiceFactory.createService(ServiceTypes.ROOMS_SERVICE)
 
         const {room} = await roomsService.fetchRoomPopulateUsers(roomName);
 
-        // fetch banned users list
         const bannedUsers: Schema.Types.ObjectId[] = room.bannedUsersFromRoom;
-        // check if bannedUsers array exists for room
+
         if (bannedUsers && bannedUsers.length > 0) {
             // check if user is banned from room
             const foundBannedUser = bannedUsers.find((userId: Schema.Types.ObjectId) => String(currentUser._id) === String(userId));
-            // if found user inside bannedUsers array return err
+
             if (foundBannedUser) {
                 Logger.warn(`rooms-service: joinRoom(): User name = ${currentUser.name} is banned from the room = ${room.name}`);
                 throw new UserBannedFromRoomException();
@@ -66,7 +64,6 @@ export class RoomUsersManagerService {
         await this.updateUsersInRoom(room.name, usersInRoom);
     }
 
-    // leave a room
     async leaveRoom(userId: Schema.Types.ObjectId | string, room: RoomPopulatedUsers) {
         let usersInRoom: User[] | undefined;
 
@@ -85,17 +82,14 @@ export class RoomUsersManagerService {
 
         Logger.debug(`RoomsService: leaveRoom(): Updated usersInRoom array  ${usersInRoom}.`);
 
-        // if all goes well update room in DB with new usersInRoom array
         await this.updateUsersInRoom(room.name, usersInRoom);
     }
 
-    // kick a certain user from a room
     async kickUserFromRoom(room: RoomPopulatedUsers, userId: string, currentUser: User) {
         const usersService: UsersService = ServiceFactory.createService(ServiceTypes.USERS_SERVICE);
-        // check if user is the author/admin of the room
+        // check if user that initiated kick is the author/admin of the room
         await usersService.checkUserRoomOwnershipById(room.author, currentUser._id);
 
-        // attempt to remove specific user by userId from room
         await this.leaveRoom(userId, room);
     }
 
@@ -106,12 +100,10 @@ export class RoomUsersManagerService {
         // update banned users list of room
         const bannedUsersFromRoom = [...room.bannedUsersFromRoom, userId];
 
-        // update room's state in the DB
         await this.updateBannedUsersForRoom(room, bannedUsersFromRoom);
     }
 
     async removeUserFromAllRooms(userId: string) {
-        // fetch All Rooms
         const allRooms: Room[] = await RoomModel.find();
 
         // check if user was in any room
@@ -141,7 +133,7 @@ export class RoomUsersManagerService {
         if (usersInRoom && usersInRoom.length > 0) {
             // compare by userId, id values must be of type string because ObjectID === fails (different references)
             const foundUser = usersInRoom.find((user: User) => String(user._id) === String(userId));
-            // if no user found in room return false
+
             if (!foundUser) {
                 Logger.debug(`RoomsService: checkIfUserIsInRoom(): No user was found in the room= ${roomName} with the userId=  ${userId}.`);
 

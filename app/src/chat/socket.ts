@@ -38,7 +38,7 @@ export const socket = (server: http.Server) => {
 
     // setup socketIO auth middleware, THIS ONLY RUNS ONCE ON SOCKET_IO CONNECTION ESTABLISHMENT!!!!
     io.use((async (socket: Socket, next) => {
-        // check if socket auth payload is present
+
         if (socket.handshake.headers.cookie) {
 
             let userTokenPayload: UserTokenPayload;
@@ -70,30 +70,24 @@ export const socket = (server: http.Server) => {
         }
     }));
 
-
-    // listen to new connection and get socket instance of the connected party
     io.on(SocketEventsTypes.CONNECTION, (socket: Socket) => {
         Logger.debug(`Socket: io.on connection: New Websocket connection.`);
 
         // HANDLE INCOMING CREATE ROOM SOCKET_IO REQUEST
         socket.on(SocketEventsTypes.CREATE_ROOM, async ({newRoom}, callback) => {
             try {
-                // verify user token
+
                 const tokenPayload: UserTokenPayload = await authService.verifyJWT(socket.data.token);
 
-                // fetch user by id
                 const {user: currentUser} = await usersService.fetchUserById(tokenPayload._id);
 
-                // response is error if there was a problem and roomName if not
                 const {roomName} = await roomsService.createRoom(currentUser, newRoom);
 
-                // send roomUsersUpdate to all sockets in current room
                 await socketHelper.sendUsersInRoomUpdate(io, roomName);
 
-                // send roomsListUpdate to all sockets
                 await socketHelper.sendRoomsListUpdate(io);
 
-                // if no err current user joins chat group, response is the room name
+                // if no err current user joins chat group
                 socket.join(roomName);
 
                 Logger.debug(`Socket: socket.on createRoom: The socket ${socket.id} has joined the room ${roomName}.`);
@@ -110,13 +104,10 @@ export const socket = (server: http.Server) => {
         // HANDLE INCOMING EDIT ROOM SOCKET_IO REQUEST
         socket.on(SocketEventsTypes.EDIT_ROOM, async ({room}, callback) => {
             try {
-                // verify user token
                 const tokenPayload: UserTokenPayload = await authService.verifyJWT(socket.data.token);
 
-                // fetch user by id
                 const {user: currentUser} = await usersService.fetchUserById(tokenPayload._id);
 
-                // fetch room by id
                 const {room: foundRoom} = await roomsService.fetchRoomById(room._id);
 
                 // check if current user has ownership of the room
@@ -125,13 +116,11 @@ export const socket = (server: http.Server) => {
                 // check if the newly provided roomName is already in use
                 await roomsService.checkIfRoomNameExists(room.name, foundRoom._id);
 
-                // if all is well edit room
                 await roomsService.editRoom(room, foundRoom);
 
                 // send roomsListUpdate to all sockets
                 await socketHelper.sendRoomsListUpdate(io);
 
-                // send updated rooms list created by user
                 const {allUserRooms} = await roomsService.fetchAllUserRooms(currentUser);
 
                 // emit fetchUserRooms socketIO event with allUserRooms found to specific socket
@@ -145,7 +134,6 @@ export const socket = (server: http.Server) => {
         // HANDLE INCOMING DELETE_ROOM SOCKET_IO REQUESTS
         socket.on(SocketEventsTypes.DELETE_ROOM, async ({roomId}, callback) => {
             try {
-                // verify user token
                 const tokenPayload: UserTokenPayload = await authService.verifyJWT(socket.data.token);
 
                 const {user: currentUser} = await usersService.fetchUserById(tokenPayload._id);
@@ -163,10 +151,8 @@ export const socket = (server: http.Server) => {
                 // send roomsListUpdate to all sockets
                 await socketHelper.sendRoomsListUpdate(io);
 
-                // send updated rooms list created by user
                 const {allUserRooms} = await roomsService.fetchAllUserRooms(currentUser);
 
-                // emit fetchUserRooms socketIO event with allUserRooms found
                 socket.emit(SocketEventsTypes.FETCH_ALL_USER_ROOMS, allUserRooms);
 
             } catch (e) {
@@ -177,13 +163,10 @@ export const socket = (server: http.Server) => {
         // HANDLE INCOMING JOIN_ROOM SOCKET_IO REQUEST
         socket.on(SocketEventsTypes.JOIN_ROOM, async ({roomName}, callback) => {
             try {
-                // verify user token
                 const tokenPayload: UserTokenPayload = await authService.verifyJWT(socket.data.token);
 
-                // fetch user by id
                 const {user: currentUser} = await usersService.fetchUserById(tokenPayload._id);
 
-                // update rooms state
                 await roomUsersManagerService.joinRoom(currentUser, roomName);
 
                 // if no err socket joins the room
@@ -205,22 +188,17 @@ export const socket = (server: http.Server) => {
         // HANDLE INCOMING LEAVE_ROOM SOCKET_IO REQUEST
         socket.on(SocketEventsTypes.LEAVE_ROOM, async ({roomName}, callback) => {
             try {
-                // verify user token
                 const tokenPayload: UserTokenPayload = await authService.verifyJWT(socket.data.token);
 
-                // fetch user by id
                 const {user: currentUser} = await usersService.fetchUserById(tokenPayload._id);
 
-                // fetch roomData for provided roomName
                 const {room} = await roomsService.fetchRoomPopulateUsers(roomName);
 
-                // update roomsState by removing the user
                 await roomUsersManagerService.leaveRoom(currentUser._id, room);
 
                 // send roomUsersUpdate to all sockets in current room
                 await socketHelper.sendUsersInRoomUpdate(io, roomName);
 
-                // if no error user leaves socketIO group
                 socket.leave(roomName);
 
                 Logger.debug(`Socket: socket.on leaveRoom: The socket ${socket.id} has left the room ${roomName}.`);
@@ -240,13 +218,10 @@ export const socket = (server: http.Server) => {
             try {
                 Logger.debug(`socket.ts: kickUserFromRoom triggered for room ${roomName} and userId ${userId}`);
 
-                // verify user token
                 const tokenPayload: UserTokenPayload = await authService.verifyJWT(socket.data.token);
 
-                // fetch user by id
                 const {user: currentUser} = await usersService.fetchUserById(tokenPayload._id);
 
-                // fetch room by room name
                 const {room} = await roomsService.fetchRoomPopulateUsers(roomName);
 
                 await roomUsersManagerService.kickUserFromRoom(room, userId, currentUser);
@@ -276,13 +251,10 @@ export const socket = (server: http.Server) => {
             try {
                 Logger.debug(`socket.ts: banUserFromRoom triggered for room ${roomName} and userId ${userId}`);
 
-                // verify user token
                 const tokenPayload: UserTokenPayload = await authService.verifyJWT(socket.data.token);
 
-                // fetch user by id
                 const {user: currentUser} = await usersService.fetchUserById(tokenPayload._id);
 
-                // fetch room by room name
                 const {room} = await roomsService.fetchRoomPopulateUsers(roomName);
 
                 await roomUsersManagerService.banUserFromRoom(room, userId, currentUser);
@@ -310,13 +282,10 @@ export const socket = (server: http.Server) => {
         // HANDLE INCOMING FETCH_ROOM SOCKET_IO REQUEST
         socket.on(SocketEventsTypes.FETCH_ROOM, async ({roomName}, callback) => {
             try {
-                // verify user token
                 await authService.verifyJWT(socket.data.token);
 
-                // fetch room by room name
                 const {room} = await roomsService.fetchRoomPopulateUsers(roomName);
 
-                // if room was found emit fetchRoom event with roomData
                 socket.emit(SocketEventsTypes.FETCH_ROOM, room);
 
             } catch (e) {
@@ -327,13 +296,10 @@ export const socket = (server: http.Server) => {
         // HANDLE INCOMING FETCH_ALL_ROOMS SOCKET_IO REQUEST
         socket.on(SocketEventsTypes.FETCH_ALL_ROOMS, async (callback) => {
             try {
-                // verify user token
                 await authService.verifyJWT(socket.data.token);
 
-                // fetch all created rooms
                 const {allRooms} = await roomsService.fetchAllRooms();
 
-                // emit fetchAllRooms SocketIO request by sending all created rooms
                 socket.emit(SocketEventsTypes.FETCH_ALL_ROOMS, allRooms);
 
             } catch (e) {
@@ -344,16 +310,13 @@ export const socket = (server: http.Server) => {
         // HANDLE INCOMING FETCH_USER_ROOMS SOCKET_IO REQUEST
         socket.on(SocketEventsTypes.FETCH_ALL_USER_ROOMS, async (callback) => {
             try {
-                // verify user token
                 const tokenPayload: UserTokenPayload = await authService.verifyJWT(socket.data.token);
 
-                // fetch user by id
                 const {user: currentUser} = await usersService.fetchUserById(tokenPayload._id);
 
                 // fetch all rooms created by specific user
                 const {allUserRooms} = await roomsService.fetchAllUserRooms(currentUser);
 
-                // emit fetchUserRooms socketIO event with allUserRooms found
                 socket.emit(SocketEventsTypes.FETCH_ALL_USER_ROOMS, allUserRooms);
 
             } catch (e) {
@@ -364,7 +327,6 @@ export const socket = (server: http.Server) => {
         // HANDLE SEND_MESSAGE SOCKET_IO REQUEST
         socket.on(SocketEventsTypes.SEND_MESSAGE, async ({roomName, message}, callback) => {
             try {
-                // check if proper message was sent
                 if (!message || message.trim() === '') {
                     throw new InvalidMessageQueryDataException();
                 }
@@ -393,7 +355,6 @@ export const socket = (server: http.Server) => {
         // HANDLE EDIT MESSAGE SOCKET_IO EVENT
         socket.on(SocketEventsTypes.EDIT_MESSAGE, async ({roomName, editedMessage}: { roomName: string; editedMessage: Message }, callback) => {
             try {
-                // check if proper message format was sent
                 if (!editedMessage || editedMessage.text.trim() === '' || !editedMessage._id) {
                     throw new InvalidMessageQueryDataException();
                 }
@@ -404,7 +365,6 @@ export const socket = (server: http.Server) => {
                 // use helper method for initial room/user related checks and to retrieve currentUser data as well as room data
                 const {room} = await socketHelper.initialUserRoomChecksAndDataRetrieval(socket.data.token, roomName);
 
-                // check if user is author of the message that he is editing
                 usersService.checkIfMessageBelongsToUser(editedMessage, socket.data.userId);
 
                 // edit user message

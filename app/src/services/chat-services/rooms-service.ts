@@ -32,10 +32,8 @@ export class RoomsService {
         return RoomsService.instance;
     }
 
-    // Create new room
     async createRoom(currentUser: User, newRoom: Room): Promise<{ roomName: string }> {
 
-        // check if all data provided and is valid for newRoom
         if (newRoom.name === '' || newRoom.description === '' || newRoom.description.length < 10) {
             Logger.warn(`RoomsService: Create Room: Room query data missing for room with name: ${newRoom.name}.`);
 
@@ -54,11 +52,9 @@ export class RoomsService {
         // define bannedUsersArray property
         newRoom.bannedUsersFromRoom = [];
 
-        // add current user to room
         newRoom.usersInRoom.push(currentUser._id);
 
         try {
-            // create new Room Mongoose model and save it to DB
             await new RoomModel({...newRoom}).save();
             Logger.debug(`RoomsService: Create Room: New room saved to DB. RoomName = ${newRoom.name}`);
 
@@ -66,20 +62,17 @@ export class RoomsService {
             if (err instanceof Error && err.message.split(' ')[0] === this.ALREADY_CREATED) {
 
                 Logger.warn(`RoomsService: Create Room: Room name already taken exception triggered for name ${newRoom.name}.`);
-
                 throw new RoomNameTakenException();
             }
         }
         return {roomName: newRoom.name};
     }
 
-    // edit existing room
     async editRoom(editedRoom: Room, foundRoom: Room) {
 
         // catch profane language in edit room query
         this.profaneWordsFilter.filterArrayOfStrings([editedRoom.name, editedRoom.description]);
 
-        // try to update the room in the DB
         try {
             await RoomModel.findByIdAndUpdate(foundRoom._id, {
                 name: editedRoom.name,
@@ -91,7 +84,6 @@ export class RoomsService {
         }
     }
 
-    // delete existing room
     async deleteRoom(roomId: Schema.Types.ObjectId) {
         try {
             await RoomModel.findByIdAndDelete(roomId);
@@ -130,9 +122,9 @@ export class RoomsService {
     // return a specific room
     async fetchRoomPopulateUsers(roomName: string): Promise<{ room: RoomPopulatedUsers }> {
         let foundRoom;
-        // check if valid roomName
+
         if (!roomName || roomName === '') {
-            // get customException type from exceptionFactory
+
             Logger.warn(`RoomsService: Fetch Room: Invalid room query for room name ${roomName}.`);
             new RoomQueryDataInvalidException();
         }
@@ -140,7 +132,6 @@ export class RoomsService {
         Logger.debug(`RoomsService: Fetch Room: Searching room by name ${roomName}.`);
 
         try {
-            // Find room by roomName and only retrieve users id name and email
             foundRoom = await RoomModel.findOne({name: roomName}).populate<{ usersInRoom: User[] }>({
                 path: 'usersInRoom',
                 select: '_id name email'
@@ -150,10 +141,8 @@ export class RoomsService {
             throw new ProblemRetrievingDataException();
         }
 
-        // check if room exists
         if (!foundRoom) {
             Logger.warn(`RoomsService: Fetch Room: no room found for room name ${roomName}.`);
-            // get customException type from exceptionFactory
             throw new RoomCouldNotBeFoundException();
         }
 
@@ -161,10 +150,9 @@ export class RoomsService {
         return {room: foundRoom};
     }
 
-    // return all current rooms
     async fetchAllRooms(): Promise<{ allRooms: Room[] }> {
         let allRooms;
-        // try to fetch all the rooms from the DB
+
         try {
             allRooms = await RoomModel.find();
         } catch (e) {
@@ -175,7 +163,6 @@ export class RoomsService {
         return {allRooms};
     }
 
-    // return all rooms created by a specific user
     async fetchAllUserRooms(currentUser: User): Promise<{ allUserRooms: Room[] }> {
         let allUserRooms: Room[];
 
@@ -220,16 +207,13 @@ export class RoomsService {
         return {savedChatMessage: newlySavedMessage};
     }
 
-    //helper method that checks if a provided name is already in use
     async checkIfRoomNameExists(name: string, roomToEditID: Schema.Types.ObjectId) {
 
         let foundRoom: Room | null = null;
 
-        //search for room with given room name
         try {
             foundRoom = await RoomModel.findOne({name: name, _id: {$ne: roomToEditID}});
         } catch (e) {
-            // ts compiler error if no type assertion here
             if (e instanceof Error) {
                 Logger.warn(`RoomsService: checkIfRoomNameExists: Failed to retrieve room data for room name ${name} with error message: ${e.message}`);
 
@@ -238,7 +222,6 @@ export class RoomsService {
         }
 
         Logger.debug(`RoomsService: checkIfRoomNameExists: foundRoom =  ${foundRoom}`);
-        // check if room was found
         if (foundRoom) {
             throw new RoomNameTakenException();
         }
