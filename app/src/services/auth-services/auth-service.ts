@@ -65,4 +65,8 @@ export class AuthService {
     async generateAuthToken(userId: string) {
         return jwt.sign({_id: userId}, process.env.JWT_SECRET, {expiresIn: '3h'});
     }
+
+    async hashPassword(password: string): Promise<string> {
+        return await bcrypt.hash(password, 10);
+    }
 }

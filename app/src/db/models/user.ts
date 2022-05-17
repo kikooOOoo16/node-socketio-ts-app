@@ -2,6 +2,9 @@ import {model, Schema} from "mongoose";
 import * as bcrypt from 'bcrypt';
 import validator from "validator";
 import {User} from "../../interfaces/user";
+import {ServiceFactory} from "../../services/service-factory";
+import {ServiceTypes} from "../../services/service-types";
+import {AuthService} from "../../services/auth-services/auth-service";
 
 const userSchema: Schema = new Schema<User>({
     name: {
@@ -65,10 +68,11 @@ userSchema.methods.toJSON = function () {
 // Hash Password
 userSchema.pre('save', async function (next) {
     const user = this;
+    const authService: AuthService = ServiceFactory.createService(ServiceTypes.AUTH_SERVICE);
 
     // hash password only if password field is modified which will happen on new user sign up and password update.
     if (user.isModified('password')) {
-        user.password = await bcrypt.hash(user.password, 10);
+        user.password = await authService.hashPassword(user.password);
     }
     next();
 });
