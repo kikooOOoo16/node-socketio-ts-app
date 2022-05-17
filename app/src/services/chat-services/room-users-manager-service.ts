@@ -99,7 +99,6 @@ export class RoomUsersManagerService {
         await this.leaveRoom(userId, room);
     }
 
-    // ban certain user from a room
     async banUserFromRoom(room: RoomPopulatedUsers, userId: any, currentUser: User) {
         // first kick the user from the room
         await this.kickUserFromRoom(room, userId, currentUser);
@@ -118,14 +117,13 @@ export class RoomUsersManagerService {
         // check if user was in any room
         allRoomsLoop:
             for (const room of allRooms) {
-                if (room.usersInRoom && room.usersInRoom?.length > 0) {
+
+                if (room.usersInRoom && room.usersInRoom.length > 0) {
                     for (const id of room.usersInRoom) {
 
                         if (String(id) === userId) {
-                            // if found in room remove user
                             Logger.debug(`users-service: removeUserFromAllRooms(): User with ${userId} found in room ${room.name}, removing user from room...`);
-                            room.usersInRoom = room.usersInRoom?.filter((id) => String(id) !== userId);
-                            Logger.debug(`users-service: removeUserFromAllRooms(): The updated usersInRoom array is ${[...room.usersInRoom]}`);
+                            room.usersInRoom = room.usersInRoom.filter((id) => String(id) !== userId);
                             // update list in db
                             await RoomModel.findOneAndUpdate({name: room.name}, {'usersInRoom': room.usersInRoom});
                             // break parent loop
