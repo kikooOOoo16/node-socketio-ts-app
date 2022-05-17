@@ -5,7 +5,6 @@ import {User as UserModel} from "../../db/models/user";
 import {Room as RoomModel} from "../../db/models/room";
 import {RoomPopulatedUsers} from "../../interfaces/roomPopulatedUsers";
 import {User} from "../../interfaces/user";
-import {Room} from "../../interfaces/room";
 import {Message} from "../../interfaces/message";
 
 import {UnauthorizedActionException} from "../../chat/exceptions/user-related-exceptions/unauthorized-action-exception";
