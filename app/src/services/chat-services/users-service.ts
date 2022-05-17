@@ -9,7 +9,6 @@ import {Room} from "../../interfaces/room";
 import {Message} from "../../interfaces/message";
 
 import {UnauthorizedActionException} from "../../chat/exceptions/user-related-exceptions/unauthorized-action-exception";
-import {RoomCouldNotBeFoundException} from "../../chat/exceptions/room-related-exceptions/room-could-not-be-found-exception";
 import {UnauthorizedActionNotRoomAuthorException} from "../../chat/exceptions/user-related-exceptions/unauthorized-action-not-room-author-exception";
 import {ProblemUpdatingRoomException} from "../../chat/exceptions/room-related-exceptions/problem-updating-room-exception";
 import {ProblemSavingUserSocketIdException} from "../../chat/exceptions/user-related-exceptions/problem-saving-user-socket-id-exception";
@@ -92,16 +91,6 @@ export class UsersService {
             throw new UnauthorizedActionNotRoomAuthorException();
         }
         Logger.debug(`users-service: checkUserRoomOwnershipById(): Passed, the currentUser ${String(userId)} is the rooms author = ${String(roomAuthorId)}`);
-    }
-
-    async checkUserRoomOwnership(userId: Schema.Types.ObjectId, room: Room) {
-        // check if request user is the same as room author
-        if (String(room.author) !== String(userId)) {
-            // if is not authenticated return unauthorizedAction err
-            Logger.warn(`users-service: checkUserRoomOwnership(): Check room ownership failed for room author = ${room.author} and userId = ${userId}`);
-            throw new UnauthorizedActionException();
-        }
-        Logger.debug(`users-service: checkUserRoomOwnership(): Check room ownership passed for room ${room.name}.`);
     }
 
     checkIfMessageBelongsToUser(editedMessage: Message, userId: string) {

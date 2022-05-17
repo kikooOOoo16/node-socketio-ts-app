@@ -18,7 +18,6 @@ import {MessageGeneratorService} from "../services/chat-services/message-generat
 import {AuthService} from "../services/auth-services/auth-service";
 import {RoomUsersManagerService} from "../services/chat-services/room-users-manager-service";
 import {ProfaneWordsFilter} from "./profane-words-filter";
-import {Room as RoomModel} from "../interfaces/room";
 
 export const socket = (server: http.Server) => {
     const io = new Server(server, {
@@ -120,7 +119,7 @@ export const socket = (server: http.Server) => {
                 const {room: foundRoom} = await roomsService.fetchRoomById(room._id);
 
                 // check if current user has ownership of the room
-                await usersService.checkUserRoomOwnership(currentUser._id, foundRoom);
+                await usersService.checkUserRoomOwnershipById(currentUser._id, foundRoom.author);
 
                 // check if the newly provided roomName is already in use
                 await roomsService.checkIfRoomNameExists(room.name, foundRoom._id);
@@ -153,7 +152,7 @@ export const socket = (server: http.Server) => {
                 const {room: foundRoom} = await roomsService.fetchRoomById(roomId);
 
                 // check if current user has ownership of the room
-                await usersService.checkUserRoomOwnership(currentUser._id, foundRoom);
+                await usersService.checkUserRoomOwnershipById(currentUser._id, foundRoom.author);
 
                 await roomsService.deleteRoom(foundRoom._id);
 

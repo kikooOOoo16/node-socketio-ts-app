@@ -12,13 +12,13 @@ import {UserAlreadyInRoomException} from "../../chat/exceptions/user-related-exc
 import {UserNotInRoomException} from "../../chat/exceptions/user-related-exceptions/user-not-in-room-exception";
 import {ProblemUpdatingRoomBannedUsersException} from "../../chat/exceptions/room-related-exceptions/problem-updating-room-banned-users-exception";
 import {ProblemAddingUserToRoomException} from "../../chat/exceptions/room-related-exceptions/problem-adding-user-to-room-exception";
+import {ServiceFactory} from "../service-factory";
+import {ServiceTypes} from "../service-types";
 
 export class RoomUsersManagerService {
     private static instance: RoomUsersManagerService;
-    private roomsService: RoomsService;
 
     private constructor() {
-        this.roomsService = RoomsService.getInstance();
     }
 
     public static getInstance(): RoomUsersManagerService {
@@ -30,8 +30,9 @@ export class RoomUsersManagerService {
 
     // join a room
     async joinRoom(currentUser: User, roomName: string) {
+        const roomsService: RoomsService = ServiceFactory.createService(ServiceTypes.ROOMS_SERVICE)
 
-        const {room} = await this.roomsService.fetchRoomPopulateUsers(roomName);
+        const {room} = await roomsService.fetchRoomPopulateUsers(roomName);
 
         // fetch banned users list
         const bannedUsers: Schema.Types.ObjectId[] = room.bannedUsersFromRoom;
@@ -90,8 +91,9 @@ export class RoomUsersManagerService {
 
     // kick a certain user from a room
     async kickUserFromRoom(room: RoomPopulatedUsers, userId: string, currentUser: User) {
+        const usersService: UsersService = ServiceFactory.createService(ServiceTypes.USERS_SERVICE);
         // check if user is the author/admin of the room
-        await UsersService.getInstance().checkUserRoomOwnershipById(room.author, currentUser._id);
+        await usersService.checkUserRoomOwnershipById(room.author, currentUser._id);
 
         // attempt to remove specific user by userId from room
         await this.leaveRoom(userId, room);
