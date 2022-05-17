@@ -3,7 +3,7 @@ import {AbstractException} from "../abstract-exception";
 export class UnauthorizedActionException extends AbstractException {
 
     constructor() {
-        super(`Unauthorized action!`);
+        super(`Error: Unauthorized action!`);
         Object.setPrototypeOf(this, UnauthorizedActionException.prototype);
     }
 

@@ -1,5 +1,5 @@
-import {Message} from "../interfaces/message";
-import {User} from "../interfaces/user";
+import {Message} from "../../interfaces/message";
+import {User} from "../../interfaces/user";
 
 export class MessageGeneratorService {
     private static instance: MessageGeneratorService;
@@ -11,7 +11,7 @@ export class MessageGeneratorService {
         return MessageGeneratorService.instance;
     }
 
-    public generateMessage = (user: User | undefined, msgText: string): Message => {
+    public generateMessage(user: User | undefined, msgText: string): Message {
         const createdAtUnixTime = new Date().getTime();
 
         //if no user was passed the message is being sent by the Server

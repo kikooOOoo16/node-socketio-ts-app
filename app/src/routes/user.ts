@@ -1,16 +1,17 @@
 import express from 'express';
 import {auth} from "../middleware/middleware";
-import {signIn, signUp, logout, userProfile} from "../controllers/user";
+import {UserControllers} from "../controllers/user";
 
 const router = express.Router();
+const userControllers: UserControllers = UserControllers.getInstance();
 
-router // POST new user signup
-    .post('/signup', signUp)
+router // POST new user sign up
+    .post('/signup', userControllers.signUp)
     // POST sign user in
-    .post('/signin', signIn)
+    .post('/signin', userControllers.signIn)
     // POST logout user
-    .post('/logout', auth, logout)
+    .post('/logout', auth, userControllers.logout)
     // GET user data
-    .get('/user', auth, userProfile);
+    .get('/user', auth, userControllers.userProfile);
 
 export {router as userRoutes};

@@ -1,28 +1,26 @@
-import * as jwt from "jsonwebtoken";
-import {UserTokenPayload} from "../interfaces/userTokenPayload";
-import {RoomPopulatedUsers} from "../interfaces/roomPopulatedUsers";
-import {User} from "../interfaces/user";
-import {Room} from "../interfaces/room";
-import {Message} from "../interfaces/message";
-import {User as UserModel} from "../db/models/user";
-import {Room as RoomModel} from "../db/models/room";
+import Logger from "../../logger/logger";
 import {Schema} from "mongoose";
-import Logger from "../logger/logger";
-import {ExpiredUserTokenException} from "./exceptions/user-related-exceptions/expired-user-token-exception";
-import {UnauthorizedActionException} from "./exceptions/user-related-exceptions/unauthorized-action-exception";
-import {RoomCouldNotBeFoundException} from "./exceptions/room-related-exceptions/room-could-not-be-found-exception";
-import {UnauthorizedActionNotRoomAuthorException} from "./exceptions/user-related-exceptions/unauthorized-action-not-room-author-exception";
-import {ProblemUpdatingRoomException} from "./exceptions/room-related-exceptions/problem-updating-room-exception";
-import {ProblemSavingUserSocketIdException} from "./exceptions/user-related-exceptions/problem-saving-user-socket-id-exception";
-import {RoomsService} from "./rooms-service";
-import {ProblemEditingChatMessageException} from "./exceptions/message-related-exceptions/problem-editing-chat-message-exception";
+
+import {User as UserModel} from "../../db/models/user";
+import {Room as RoomModel} from "../../db/models/room";
+import {RoomPopulatedUsers} from "../../interfaces/roomPopulatedUsers";
+import {User} from "../../interfaces/user";
+import {Room} from "../../interfaces/room";
+import {Message} from "../../interfaces/message";
+
+import {UnauthorizedActionException} from "../../chat/exceptions/user-related-exceptions/unauthorized-action-exception";
+import {RoomCouldNotBeFoundException} from "../../chat/exceptions/room-related-exceptions/room-could-not-be-found-exception";
+import {UnauthorizedActionNotRoomAuthorException} from "../../chat/exceptions/user-related-exceptions/unauthorized-action-not-room-author-exception";
+import {ProblemUpdatingRoomException} from "../../chat/exceptions/room-related-exceptions/problem-updating-room-exception";
+import {ProblemSavingUserSocketIdException} from "../../chat/exceptions/user-related-exceptions/problem-saving-user-socket-id-exception";
+import {ProblemEditingChatMessageException} from "../../chat/exceptions/message-related-exceptions/problem-editing-chat-message-exception";
+import {ProblemRetrievingDataException} from "../../chat/exceptions/general-exceptions/problem-retrieving-data-exception";
+import {ProblemAuthenticatingInvalidCredentialsException} from "../../chat/exceptions/user-related-exceptions/problem-authenticating-invalid-credentials-exception";
 
 export class UsersService {
     private static instance: UsersService;
-    private roomsService: RoomsService;
 
     private constructor() {
-        this.roomsService = RoomsService.getInstance();
     }
 
     public static getInstance(): UsersService {
@@ -32,7 +30,36 @@ export class UsersService {
         return UsersService.instance;
     }
 
-    saveUsersSocketID = async (userId: string, socketId: string) => {
+    async fetchUserById(userId: Schema.Types.ObjectId | string): Promise<{ user: User }> {
+        // find user by using the _id from the token
+        const user: User | null = await UserModel.findById(userId);
+        // check if currentUser was found
+        if (!user) {
+            Logger.warn(`Couldn't find user in db with provided userId= ${userId}`);
+            throw new UnauthorizedActionException();
+        }
+        Logger.debug(`users-service: fetchUserById: Successfully fetcher user data for user name= ${user.name}`);
+        return {user};
+    }
+
+    async fetchUserByEmail(email: string): Promise<{ user: User }> {
+        let user: User | null;
+        try {
+            user = await UserModel.findOne({email});
+        } catch (e) {
+            Logger.warn(`users-service: fetchUserByEmail(): There was a problem retrieving the users data for the email ${email}`);
+            throw new ProblemRetrievingDataException();
+        }
+
+        if (!user) {
+            throw new ProblemAuthenticatingInvalidCredentialsException();
+        }
+
+        Logger.debug(`users-service: fetchUserByEmail: Successfully found user data for email = ${email}`);
+        return {user};
+    }
+
+    async saveUsersSocketID(userId: string, socketId: string) {
         Logger.debug(`users-service: saveUsersSocketID: triggered for userId = ${userId} and socketID = ${socketId}`);
 
         try {
@@ -45,7 +72,7 @@ export class UsersService {
         }
     }
 
-    removeUsersSocketID = async (userId: string, socketId: string) => {
+    async removeUsersSocketID(userId: string, socketId: string) {
         Logger.debug(`users-service: removeUsersSocketID: triggered for userId = ${userId} and socketID = ${socketId}`);
 
         try {
@@ -58,52 +85,7 @@ export class UsersService {
         }
     }
 
-    fetchUserById = async (userId: Schema.Types.ObjectId | string): Promise<{ user: User }> => {
-        // find user by using the _id from the token
-        const user: User | null = await UserModel.findById(userId);
-        // check if currentUser was found
-        if (!user) {
-            Logger.warn(`Couldn't find user in db with provided userId= ${userId}`);
-            throw new UnauthorizedActionException();
-        }
-        Logger.debug(`users-service: fetchUserById: Successfully fetcher user data for user name= ${user.name}`);
-        return {user};
-    }
-
-    verifyUserTokenFetchUser = async (token: string): Promise<{ currentUser: User }> => {
-        let decodedToken;
-
-        try {
-            // check user auth with token in request
-            decodedToken = (jwt.verify(token, process.env.JWT_SECRET)) as UserTokenPayload;
-        } catch (e) {
-            if (e instanceof Error) {
-
-                Logger.warn(`UsersService: verifyUserToken: Token verify failed with err: ${e.message}.`);
-
-                if (e.name === 'TokenExpiredError') {
-                    // remove user if he is inside a chat room
-                    const payload = jwt.verify(token, process.env.JWT_SECRET, {ignoreExpiration: true}) as UserTokenPayload;
-
-                    Logger.debug('UsersService: verifyUserToken: Token expired, removeUserFromAllRooms() triggered.');
-                    await this.roomsService.removeUserFromAllRooms(payload._id);
-
-                    throw new ExpiredUserTokenException();
-                }
-            }
-
-            // if token hasn't expired then no token provided, send general unauthorized action error
-            throw new UnauthorizedActionException();
-        }
-
-        const {user: currentUser} = await this.fetchUserById(decodedToken._id);
-
-        Logger.debug(`users-service: verifyUserTokenFetchUser: Successfully verified token, and returning user name = ${currentUser.name}`);
-
-        return {currentUser};
-    }
-
-    checkUserRoomOwnershipById = async (roomAuthorId: Schema.Types.ObjectId, userId: Schema.Types.ObjectId | string) => {
+    async checkUserRoomOwnershipById(roomAuthorId: Schema.Types.ObjectId, userId: Schema.Types.ObjectId | string) {
         // check if current user is the author/admin of the room
         if (String(roomAuthorId) !== String(userId)) {
             Logger.warn(`users-service: checkUserRoomOwnershipById(): Unauthorized action err: The currentUser ${String(userId)} is not the room's author = ${String(roomAuthorId)}`)
@@ -112,7 +94,7 @@ export class UsersService {
         Logger.debug(`users-service: checkUserRoomOwnershipById(): Passed, the currentUser ${String(userId)} is the rooms author = ${String(roomAuthorId)}`);
     }
 
-    checkUserRoomOwnershipFetchRoom = async (_id: Schema.Types.ObjectId | undefined, roomId: string): Promise<{ foundRoom: Room }> => {
+    async checkUserRoomOwnershipAndFetchRoom(_id: Schema.Types.ObjectId | undefined, roomId: string): Promise<{ foundRoom: Room }> {
 
         let foundRoom: Room | null = null;
 
@@ -141,7 +123,7 @@ export class UsersService {
         return {foundRoom}
     }
 
-    checkIfMessageBelongsToUser = (editedMessage: Message, userId: string) => {
+    checkIfMessageBelongsToUser(editedMessage: Message, userId: string) {
 
         if (String(editedMessage.author.id) !== userId) {
             Logger.warn(`users-service: checkIfMessageBelongsToUser(): Edit message failed for userId ${userId} and message author id ${String(editedMessage.author.id)}`);
@@ -150,7 +132,7 @@ export class UsersService {
         Logger.debug(`users-service: checkIfMessageBelongsToUser(): The user ${userId} is definitely the author of the message ${String(editedMessage.text)}`);
     }
 
-    editUserMessage = async (editedMessage: Message, room: RoomPopulatedUsers): Promise<{ updatedRoom: RoomPopulatedUsers }> => {
+    async editUserMessage(editedMessage: Message, room: RoomPopulatedUsers): Promise<{ updatedRoom: RoomPopulatedUsers }> {
 
         if (room.chatHistory && room.chatHistory.length > 0) {
             //edit specific message in room's chat history

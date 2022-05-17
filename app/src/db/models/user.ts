@@ -1,11 +1,9 @@
 import {model, Schema} from "mongoose";
-import jwt from 'jsonwebtoken';
 import * as bcrypt from 'bcrypt';
 import validator from "validator";
-import {UserModel} from "../../interfaces/userModel";
 import {User} from "../../interfaces/user";
 
-const userSchema: Schema = new Schema({
+const userSchema: Schema = new Schema<User>({
     name: {
         type: String,
         required: true,
@@ -49,14 +47,6 @@ userSchema.virtual('userRooms', {
     foreignField: 'author'
 });
 
-// Custom Mongoose Instance methods
-// don't use arrow function because 'this' will point to global
-userSchema.methods.generateAuthToken = async function () {
-    const user = this;
-    // return user token
-    return jwt.sign({_id: user._id.toString()}, process.env.JWT_SECRET, {expiresIn: '3h'});
-}
-
 // return object with only the necessary user data
 userSchema.methods.toJSON = function () {
     const user = this;
@@ -71,23 +61,6 @@ userSchema.methods.toJSON = function () {
     return userObject;
 }
 
-// Custom Mongoose model static methods
-userSchema.static('findByCredentials', async (email, password) => {
-    // find stored user by email
-    const user = await User.findOne({email});
-    // check if user with that email exists
-    if (!user) {
-        throw new Error('Error: User authentication failed! Invalid credentials.');
-    }
-    // check if encrypted password matches user's saved encrypted password
-    const isMatch = await bcrypt.compare(password, user.password!);
-    if (!isMatch) {
-        throw new Error('Error: User authentication failed! Invalid credentials.');
-    }
-    // if all is well return user
-    return user;
-});
-
 // MongoDB hooks middleware
 // Hash Password
 userSchema.pre('save', async function (next) {
@@ -101,7 +74,6 @@ userSchema.pre('save', async function (next) {
 });
 
 // create mongoose model from user's schema
-//@ts-ignore
-const User = model<User, UserModel>('User', userSchema);
+const User = model('User', userSchema);
 
 export {User};

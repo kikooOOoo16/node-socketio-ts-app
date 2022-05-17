@@ -14,7 +14,9 @@ const normalizePort = (val: string | number) => {
         //  port num
         return port;
     }
-    // return false;
+
+    Logger.error('server.ts: normalizePort(): Normalize port failed for server. Shutting down...');
+    process.exit(1);
 }
 
 const onError = (error: { syscall: string; code: any; }) => {

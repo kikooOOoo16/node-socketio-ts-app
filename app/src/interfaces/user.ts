@@ -1,6 +1,12 @@
-import {UserDocument} from "./userDocument";
+import {Schema} from "mongoose";
 
-export interface User extends UserDocument {
+export interface User {
 
-    generateAuthToken(): string;
+    _id: Schema.Types.ObjectId;
+    name: string;
+    email: string;
+    password?: string;
+    currentRoom?: string;
+    tokens? : string[];
+    socketId?: string;
 }
