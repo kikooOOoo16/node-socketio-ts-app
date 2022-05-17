@@ -102,8 +102,33 @@ export class RoomsService {
         Logger.debug(`RoomsService: Delete Room: Successfully deleted the room with id= ${roomId}.`);
     }
 
+    async fetchRoomById(roomId: string): Promise<{ room: Room }> {
+        let room;
+
+        if (!roomId) {
+            throw new RoomQueryDataInvalidException();
+        }
+
+        try {
+            room = await RoomModel.findById(roomId);
+        } catch (e) {
+            if (e instanceof Error) {
+
+                Logger.warn(`rooms-service: fetchRoomById(): Failed retrieving room data with err = ${e.message} `);
+                throw new ProblemRetrievingDataException();
+            }
+        }
+
+        if (!room) {
+            throw new RoomCouldNotBeFoundException();
+        }
+
+        Logger.debug(`rooms-service: fetchRoomById(): Successfully found room= ${room.name}`);
+        return {room};
+    }
+
     // return a specific room
-    async fetchRoom(roomName: string): Promise<{ room: RoomPopulatedUsers }> {
+    async fetchRoomPopulateUsers(roomName: string): Promise<{ room: RoomPopulatedUsers }> {
         let foundRoom;
         // check if valid roomName
         if (!roomName || roomName === '') {

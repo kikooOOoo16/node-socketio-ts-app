@@ -94,33 +94,14 @@ export class UsersService {
         Logger.debug(`users-service: checkUserRoomOwnershipById(): Passed, the currentUser ${String(userId)} is the rooms author = ${String(roomAuthorId)}`);
     }
 
-    async checkUserRoomOwnershipAndFetchRoom(_id: Schema.Types.ObjectId | undefined, roomId: string): Promise<{ foundRoom: Room }> {
-
-        let foundRoom: Room | null = null;
-
-        try {
-            foundRoom = await RoomModel.findById(roomId);
-        } catch (e) {
-            if (e instanceof Error) {
-                Logger.error(`users-service: checkUserRoomOwnershipFetchRoom(): failed getting room from DB with message ${e.message} for id = ${roomId}`);
-                throw new RoomCouldNotBeFoundException();
-            }
-        }
-
-        if (!foundRoom) {
-            throw new RoomCouldNotBeFoundException();
-        }
-
+    async checkUserRoomOwnership(userId: Schema.Types.ObjectId, room: Room) {
         // check if request user is the same as room author
-        if (String(foundRoom?.author) !== String(_id)) {
+        if (String(room.author) !== String(userId)) {
             // if is not authenticated return unauthorizedAction err
+            Logger.warn(`users-service: checkUserRoomOwnership(): Check room ownership failed for room author = ${room.author} and userId = ${userId}`);
             throw new UnauthorizedActionException();
         }
-
-        Logger.debug(`users-service: checkUserRoomOwnershipFetchRoom(): Check room ownership passed for room ${foundRoom.name}, returning room obj.`);
-
-        // if all is well return found room and initial err value of ''
-        return {foundRoom}
+        Logger.debug(`users-service: checkUserRoomOwnership(): Check room ownership passed for room ${room.name}.`);
     }
 
     checkIfMessageBelongsToUser(editedMessage: Message, userId: string) {

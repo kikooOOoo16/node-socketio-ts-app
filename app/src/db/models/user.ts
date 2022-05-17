@@ -1,5 +1,4 @@
 import {model, Schema} from "mongoose";
-import * as bcrypt from 'bcrypt';
 import validator from "validator";
 import {User} from "../../interfaces/user";
 import {ServiceFactory} from "../../services/service-factory";

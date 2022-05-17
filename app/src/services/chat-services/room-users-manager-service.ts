@@ -31,7 +31,7 @@ export class RoomUsersManagerService {
     // join a room
     async joinRoom(currentUser: User, roomName: string) {
 
-        const {room} = await this.roomsService.fetchRoom(roomName);
+        const {room} = await this.roomsService.fetchRoomPopulateUsers(roomName);
 
         // fetch banned users list
         const bannedUsers: Schema.Types.ObjectId[] = room.bannedUsersFromRoom;

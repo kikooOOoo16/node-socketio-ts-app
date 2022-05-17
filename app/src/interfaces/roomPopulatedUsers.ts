@@ -4,6 +4,7 @@ import {User} from "./user";
 
 export interface RoomPopulatedUsers {
 
+    _id: Schema.Types.ObjectId;
     author: Schema.Types.ObjectId;
     name: string;
     description: string;

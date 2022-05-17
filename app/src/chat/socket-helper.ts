@@ -40,7 +40,7 @@ export class SocketHelper {
         const {user: currentUser} = await this.usersService.fetchUserById(tokenPayload._id);
 
         // check if room exists
-        const {room} = await this.roomsService.fetchRoom(roomName);
+        const {room} = await this.roomsService.fetchRoomPopulateUsers(roomName);
 
         // check if user in actual room where he is sending a message
         const {userIsInRoom} = this.roomUsersManagerService.checkIfUserIsInRoom(room.usersInRoom, currentUser._id, roomName);
@@ -118,7 +118,7 @@ export class SocketHelper {
 
     async sendUsersInRoomUpdate(io: Server, roomName: string) {
         // get latest room data
-        const {room} = await this.roomsService.fetchRoom(roomName);
+        const {room} = await this.roomsService.fetchRoomPopulateUsers(roomName);
 
         Logger.debug(`socket-helper: sendUsersInRoomUpdate(): Sent update with room data for room ${roomName}`);
         // send socketIO roomDataUpdate emit to all users within the room

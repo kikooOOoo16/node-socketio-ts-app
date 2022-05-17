@@ -18,6 +18,7 @@ import {MessageGeneratorService} from "../services/chat-services/message-generat
 import {AuthService} from "../services/auth-services/auth-service";
 import {RoomUsersManagerService} from "../services/chat-services/room-users-manager-service";
 import {ProfaneWordsFilter} from "./profane-words-filter";
+import {Room as RoomModel} from "../interfaces/room";
 
 export const socket = (server: http.Server) => {
     const io = new Server(server, {
@@ -115,8 +116,11 @@ export const socket = (server: http.Server) => {
                 // fetch user by id
                 const {user: currentUser} = await usersService.fetchUserById(tokenPayload._id);
 
+                // fetch room by id
+                const {room: foundRoom} = await roomsService.fetchRoomById(room._id);
+
                 // check if current user has ownership of the room
-                const {foundRoom} = await usersService.checkUserRoomOwnershipAndFetchRoom(currentUser?._id, room._id);
+                await usersService.checkUserRoomOwnership(currentUser._id, foundRoom);
 
                 // check if the newly provided roomName is already in use
                 await roomsService.checkIfRoomNameExists(room.name, foundRoom._id);
@@ -144,13 +148,13 @@ export const socket = (server: http.Server) => {
                 // verify user token
                 const tokenPayload: UserTokenPayload = await authService.verifyJWT(socket.data.token);
 
-                // fetch user by id
                 const {user: currentUser} = await usersService.fetchUserById(tokenPayload._id);
 
-                // check if current user has ownership of the room
-                const {foundRoom} = await usersService.checkUserRoomOwnershipAndFetchRoom(currentUser?._id, roomId);
+                const {room: foundRoom} = await roomsService.fetchRoomById(roomId);
 
-                // delete room from DB
+                // check if current user has ownership of the room
+                await usersService.checkUserRoomOwnership(currentUser._id, foundRoom);
+
                 await roomsService.deleteRoom(foundRoom._id);
 
                 // delete room from socketIO itself by removing all the sockets from it
@@ -208,7 +212,7 @@ export const socket = (server: http.Server) => {
                 const {user: currentUser} = await usersService.fetchUserById(tokenPayload._id);
 
                 // fetch roomData for provided roomName
-                const {room} = await roomsService.fetchRoom(roomName);
+                const {room} = await roomsService.fetchRoomPopulateUsers(roomName);
 
                 // update roomsState by removing the user
                 await roomUsersManagerService.leaveRoom(currentUser._id, room);
@@ -243,7 +247,7 @@ export const socket = (server: http.Server) => {
                 const {user: currentUser} = await usersService.fetchUserById(tokenPayload._id);
 
                 // fetch room by room name
-                const {room} = await roomsService.fetchRoom(roomName);
+                const {room} = await roomsService.fetchRoomPopulateUsers(roomName);
 
                 await roomUsersManagerService.kickUserFromRoom(room, userId, currentUser);
 
@@ -279,7 +283,7 @@ export const socket = (server: http.Server) => {
                 const {user: currentUser} = await usersService.fetchUserById(tokenPayload._id);
 
                 // fetch room by room name
-                const {room} = await roomsService.fetchRoom(roomName);
+                const {room} = await roomsService.fetchRoomPopulateUsers(roomName);
 
                 await roomUsersManagerService.banUserFromRoom(room, userId, currentUser);
 
@@ -310,7 +314,7 @@ export const socket = (server: http.Server) => {
                 await authService.verifyJWT(socket.data.token);
 
                 // fetch room by room name
-                const {room} = await roomsService.fetchRoom(roomName);
+                const {room} = await roomsService.fetchRoomPopulateUsers(roomName);
 
                 // if room was found emit fetchRoom event with roomData
                 socket.emit('fetchRoom', room);
