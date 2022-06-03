@@ -1,0 +1,29 @@
+version: "3.8"
+services:
+
+  db:
+    image: mongo:4.4.14-rc0-focal
+    ports:
+      - 27017:27017
+    volumes:
+      - mongodb-docker-comp:/data/db
+
+  backend:
+    depends_on:
+      - db
+    build: ./
+    ports:
+      - 3000:3000
+    environment:
+      NG_APP_URL: http://localhost:4200
+      MONGODB_URL: mongodb://db:27017/nodeChatDockerDB
+      JWT_SECRET: secretString
+
+  frontend:
+    build: ../ng-socketio-app/
+    ports:
+      - 4200:4200
+
+volumes:
+  mongodb-docker-comp:
+    driver: local
